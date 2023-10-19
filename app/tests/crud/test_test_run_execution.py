@@ -28,17 +28,12 @@ from sqlalchemy.orm import Session
 from app import crud, models, schemas
 from app.crud.crud_test_run_execution import ImportError
 from app.models.test_enums import TestStateEnum
-from app.schemas.test_run_config import TestRunConfigCreate
 from app.schemas.test_run_execution import (
     TestRunExecutionCreate,
     TestRunExecutionWithStats,
 )
 from app.tests.utils.operator import operator_base_dict
 from app.tests.utils.project import create_random_project
-from app.tests.utils.test_run_config import (
-    random_test_run_config_dict,
-    test_run_config_base_dict,
-)
 from app.tests.utils.test_run_execution import (
     create_random_test_run_execution,
     create_random_test_run_execution_archived,
@@ -277,72 +272,6 @@ def test_get_test_run_executions_archived_by_project(db: Session) -> None:
     assert not any(t.id == archived_test_run_execution.id for t in test_run_executions)
 
 
-def test_create_test_run_execution_from_test_run_config(db: Session) -> None:
-    # Create build new test_run_config object
-    name = random_lower_string()
-    dut_name = random_lower_string()
-    first_test_suite_identifier = "SampleTestSuite1"
-    first_test_case_identifier = "TCSS1001"
-
-    selected_tests = {
-        "sample_tests": {
-            first_test_suite_identifier: {
-                first_test_case_identifier: 1,
-                "TCSS1002": 2,
-                "TCSS1003": 3,
-            }
-        }
-    }
-
-    total_test_case_count = sum(
-        selected_tests["sample_tests"][first_test_suite_identifier].values()
-    )
-    test_run_config_dict = random_test_run_config_dict(
-        name=name, dut_name=dut_name, selected_tests=selected_tests
-    )
-
-    test_run_config_in = TestRunConfigCreate(**test_run_config_dict)
-
-    # Save create test_run_config in DB
-    test_run_config = crud.test_run_config.create(db=db, obj_in=test_run_config_in)
-
-    # Prepare data for test_run_execution
-    test_run_execution_title = "Test Execution title"
-    test_run_execution_data = TestRunExecutionCreate(
-        title=test_run_execution_title, test_run_config_id=test_run_config.id
-    )
-
-    test_run_execution = crud.test_run_execution.create(
-        db=db, obj_in=test_run_execution_data
-    )
-
-    # Assert direct properties
-    assert test_run_execution.title == test_run_execution_title
-    assert test_run_execution.test_run_config_id == test_run_config.id
-
-    # Assert created test_suite_executions
-    test_suite_executions = test_run_execution.test_suite_executions
-    assert len(test_suite_executions) > 0
-
-    first_test_suite_execution = test_suite_executions[0]
-    test_case_executions = first_test_suite_execution.test_case_executions
-    assert len(test_case_executions) == total_test_case_count
-
-    first_test_case_execution = test_case_executions[0]
-    assert first_test_case_execution.public_id == first_test_case_identifier
-
-    remaining_test_cases = selected_tests["sample_tests"][first_test_suite_identifier]
-    for test_case_execution in test_case_executions:
-        public_id = test_case_execution.public_id
-        # Assert all test case public id's match
-        assert public_id in remaining_test_cases
-        remaining_test_cases[public_id] -= 1
-
-    # Assert the correct number of test cases where created
-    for _, missing_count in remaining_test_cases.items():
-        assert missing_count == 0
-
-
 def test_create_test_run_execution_from_selected_tests(db: Session) -> None:
     first_test_suite_identifier = "SampleTestSuite1"
     first_test_case_identifier = "TCSS1001"
@@ -370,7 +299,6 @@ def test_create_test_run_execution_from_selected_tests(db: Session) -> None:
 
     # Assert direct properties
     assert test_run_execution.title == test_run_execution_title
-    assert test_run_execution.test_run_config_id is None
 
     # Assert created test_suite_executions
     test_suite_executions = test_run_execution.test_suite_executions
@@ -505,56 +433,6 @@ def test_import_execution_invalid_project_id() -> None:
         )
 
     mocked_project_get.assert_called_once()
-
-
-def test_import_execution_success_with_test_config() -> None:
-    mocked_db = mock.MagicMock()
-
-    test_run_execution_dict = deepcopy(test_run_execution_base_dict)
-    test_run_execution_dict["operator"] = deepcopy(operator_base_dict)
-    test_run_execution_dict["test_run_config"] = deepcopy(test_run_config_base_dict)
-
-    project_id = 42
-    operator_id = 2
-    test_run_config_id = 10
-    operator_name = operator_base_dict.get("name")
-
-    test_run_config_mock = models.TestRunConfig(
-        **test_run_config_base_dict, id=test_run_config_id
-    )
-
-    with mock.patch.object(
-        target=crud.operator,
-        attribute="get_or_create",
-        return_value=operator_id,
-    ) as mocked_get_or_create, mock.patch.object(
-        target=crud.test_run_config,
-        attribute="create",
-        return_value=test_run_config_mock,
-    ) as mocked_create_test_run_config:
-        imported_test_run = crud.test_run_execution.import_execution(
-            db=mocked_db,
-            project_id=project_id,
-            execution=schemas.TestRunExecutionToExport(**test_run_execution_dict),
-        )
-
-        mocked_get_or_create.assert_called_once_with(
-            db=mocked_db, name=operator_name, commit=False
-        )
-
-        mocked_create_test_run_config.assert_called_once_with(
-            db=mocked_db,
-            obj_in=TestRunConfigCreate(**test_run_execution_dict["test_run_config"]),
-        )
-
-        call.add(imported_test_run) in mocked_db.mock_calls
-        call.commit() in mocked_db.mock_calls
-        call.refresh(imported_test_run) in mocked_db.mock_calls
-
-        assert imported_test_run.project_id == project_id
-        assert imported_test_run.title == test_run_execution_dict.get("title")
-        assert imported_test_run.operator_id == operator_id
-        assert imported_test_run.test_run_config_id == test_run_config_id
 
 
 def test_import_execution_success_without_test_config() -> None:

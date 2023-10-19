@@ -22,16 +22,10 @@ from sqlalchemy.orm import Session
 
 from app.crud import operator as crud_operator
 from app.crud import project as crud_project
-from app.crud import test_run_config as crud_test_run_config
 from app.crud.base import CRUDBaseCreate, CRUDBaseDelete, CRUDBaseRead
 from app.models import Project, TestCaseExecution, TestRunExecution, TestSuiteExecution
-from app.schemas import (
-    TestRunConfigCreate,
-    TestRunExecutionToExport,
-    TestRunExecutionToImport,
-)
+from app.schemas import TestRunExecutionToExport, TestRunExecutionToImport
 from app.schemas.operator import Operator
-from app.schemas.test_run_config import TestRunConfigInDB
 from app.schemas.test_run_execution import (
     TestRunExecutionCreate,
     TestRunExecutionStats,
@@ -178,17 +172,8 @@ class CRUDTestRunExecution(
 
         test_run_execution = super().create(db=db, obj_in=obj_in)
 
-        # https://github.com/chip-csg/chip-certification-tool-backend/issues/103
-        # TODO: while we change the API. selected tests can come from two places:
-        # 1. Pass in directly
-        # 2. from the optional test_run_config
         selected_tests: Optional[TestSelection] = kwargs.get("selected_tests")
-
-        if selected_tests is None:
-            # We use the Pydantic schema to deserialize the selected_tests json column
-            selected_tests = TestRunConfigInDB.from_orm(
-                test_run_execution.test_run_config
-            ).selected_tests
+        selected_tests = dict() if not selected_tests else selected_tests
 
         test_suites = (
             test_script_manager.pending_test_suite_executions_for_selected_tests(
@@ -271,12 +256,6 @@ class CRUDTestRunExecution(
                 db=db, name=operator.name, commit=False
             )
             imported_execution.operator_id = operator_id
-
-        if execution.test_run_config:
-            test_run_config = crud_test_run_config.create(
-                db=db, obj_in=TestRunConfigCreate(**execution.test_run_config.__dict__)
-            )
-            imported_execution.test_run_config_id = test_run_config.id
 
         imported_model = TestRunExecution(**jsonable_encoder(imported_execution))
 

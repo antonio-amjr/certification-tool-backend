@@ -41,7 +41,6 @@ from app.test_engine.test_runner import TestRunner, TestRunnerState
 from app.tests.test_engine.test_runner import load_test_run_for_test_cases
 from app.tests.utils.operator import create_random_operator
 from app.tests.utils.project import create_random_project
-from app.tests.utils.test_run_config import create_random_test_run_config
 from app.tests.utils.test_run_execution import (
     create_random_test_run_execution,
     create_random_test_run_execution_archived,
@@ -164,51 +163,6 @@ def test_create_test_run_execution_with_selected_tests_project_operator_succeeds
     assert response_operator["id"] == operator.id
     assert "name" in response_operator
     assert response_operator["name"] == operator.name
-
-
-def test_create_test_run_execution_with_test_run_config_and_selected_tests_succeeds(
-    client: TestClient, db: Session
-) -> None:
-    """This test will create a new test run execution. A success is expected.
-    The selected tests are passed directly by JSON payload.
-    Also, one reference to a test run config is also included, but this is ignored by
-    the API by assigning None.
-    """
-
-    test_run_config = create_random_test_run_config(db)
-    title = "TestRunExecutionFoo"
-    description = random_lower_string()
-    json_data = {
-        "test_run_execution_in": {
-            "title": title,
-            "description": description,
-            "test_run_config_id": test_run_config.id,
-        },
-        "selected_tests": {
-            "sample_tests": {
-                "SampleTestSuite1": {
-                    "TCSS1001": 1,
-                    "TCSS1002": 2,
-                    "TCSS1003": 4,
-                    "TCSS1004": 8,
-                    "TCSS1005": 16,
-                },
-            },
-        },
-    }
-    response = client.post(
-        f"{settings.API_V1_STR}/test_run_executions/",
-        json=json_data,
-    )
-    validate_json_response(
-        response=response,
-        expected_status_code=HTTPStatus.OK,
-        expected_content={
-            "title": title,
-            "description": description,
-            "test_run_config_id": None,
-        },
-    )
 
 
 def test_create_test_run_execution_with_selected_tests_with_two_suites_succeeds(

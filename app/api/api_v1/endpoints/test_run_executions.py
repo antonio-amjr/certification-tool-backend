@@ -81,9 +81,6 @@ def create_test_run_execution(
 ) -> TestRunExecution:
     """Create a new test run execution."""
 
-    # TODO: Remove test_run_config completely from the project
-    test_run_execution_in.test_run_config_id = None
-
     test_run_execution = crud.test_run_execution.create(
         db=db, obj_in=test_run_execution_in, selected_tests=selected_tests
     )
@@ -260,8 +257,6 @@ def repeat_test_run_execution(
     test_run_execution_in.description = execution_to_repeat.description
     test_run_execution_in.project_id = execution_to_repeat.project_id
     test_run_execution_in.operator_id = execution_to_repeat.operator_id
-    # TODO: Remove test_run_config completely from the project
-    test_run_execution_in.test_run_config_id = None
 
     selected_tests = selected_tests_from_execution(execution_to_repeat)
 
