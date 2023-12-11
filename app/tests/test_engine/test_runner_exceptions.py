@@ -19,13 +19,12 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models.test_enums import TestStateEnum
-from app.schemas import SelectedTests
 from app.test_engine.models import TestCase, TestSuite
 from app.tests.utils.test_runner import (
     get_test_case_for_public_id,
     get_test_suite_for_public_id,
     load_and_run_tool_unit_tests,
-    load_test_run_for_test_cases,
+    load_test_run_for_selected_tests,
 )
 from test_collections.tool_unit_tests.test_suite_exceptions import TestSuiteExceptions
 from test_collections.tool_unit_tests.test_suite_exceptions.tc_exception import (
@@ -485,9 +484,7 @@ async def test_exception_1st_test_suite_error_2nd_pass(
         ]
     }
 
-    test_runner = load_test_run_for_test_cases(
-        db=db, test_cases=SelectedTests(**selected_tests)
-    )
+    test_runner = load_test_run_for_selected_tests(db=db, selected_tests=selected_tests)
     # Save test_run reference to inspect models after completion
     test_run = test_runner.test_run
     assert test_run is not None

@@ -16,7 +16,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Enum, ForeignKey, func, select
+from sqlalchemy import JSON, Enum, ForeignKey, func, select
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.ext.orderinglist import ordering_list
@@ -76,6 +76,8 @@ class TestRunExecution(Base):
     project: Mapped["Project"] = relationship(
         "Project", back_populates="test_run_executions"
     )
+
+    selected_tests: Mapped[dict] = mapped_column(JSON, nullable=False)
 
     def append_to_log(self, log_record: "TestRunLogEntry") -> None:
         self.log.append(log_record)

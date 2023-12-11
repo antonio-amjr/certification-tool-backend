@@ -17,7 +17,6 @@ from typing import Optional, Tuple, Type
 
 from sqlalchemy.orm import Session
 
-from app.schemas import SelectedTests
 from app.schemas.test_runner_status import TestRunnerState
 from app.test_engine.models import TestCase, TestRun, TestSuite
 from app.test_engine.test_runner import TestRunner
@@ -50,9 +49,9 @@ def get_test_suite_for_public_id(
     )
 
 
-def load_test_run_for_test_cases(db: Session, test_cases: SelectedTests) -> TestRunner:
+def load_test_run_for_selected_tests(db: Session, selected_tests: dict) -> TestRunner:
     test_run_execution = create_random_test_run_execution(
-        db=db, selected_tests=test_cases
+        db=db, selected_tests=selected_tests
     )
     # Get TestRunner (singleton)
     test_runner = TestRunner()
@@ -88,9 +87,7 @@ async def load_and_run_tool_unit_tests(
         ]
     }
 
-    runner = load_test_run_for_test_cases(
-        db=db, test_cases=SelectedTests(**selected_tests)
-    )
+    runner = load_test_run_for_selected_tests(db=db, selected_tests=selected_tests)
     run = runner.test_run
     assert run is not None
 

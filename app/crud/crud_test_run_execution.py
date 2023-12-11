@@ -175,22 +175,9 @@ class CRUDTestRunExecution(
 
         test_run_execution = super().create(db=db, obj_in=obj_in)
 
-        db.commit()
-        db.refresh(test_run_execution)
-        return test_run_execution
-
-    def create_with_selected_tests(
-        self,
-        db: Session,
-        obj_in: TestRunExecutionCreate,
-        selected_tests: SelectedTests,
-        **kwargs: Optional[dict],
-    ) -> TestRunExecution:
-        test_run_execution = self.create(db, obj_in=obj_in, **kwargs)
-
         test_suites = (
             test_script_manager.pending_test_suite_executions_for_selected_tests(
-                selected_tests
+                SelectedTests(**obj_in.selected_tests)
             )
         )
 
