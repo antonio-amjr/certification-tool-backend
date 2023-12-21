@@ -39,7 +39,7 @@ from app.test_engine import (
     TEST_RUN_ALREADY_EXECUTED_MESSAGE,
 )
 from app.test_engine.test_runner import TestRunner, TestRunnerState
-from app.tests.test_engine.test_runner import load_test_run_for_test_cases
+from app.tests.test_engine.test_runner import load_test_run_for_selected_tests
 from app.tests.utils.operator import create_random_operator
 from app.tests.utils.project import create_random_project
 from app.tests.utils.test_run_execution import (
@@ -84,10 +84,8 @@ def test_create_test_run_execution_with_selected_tests_succeeds(
         ]
     }
     json_data = {
-        "test_run_execution_in": {
-            "title": title,
-            "description": description,
-        },
+        "title": title,
+        "description": description,
         "selected_tests": selected_tests,
     }
     response = client.post(
@@ -113,13 +111,25 @@ def test_create_test_run_execution_with_selected_tests_and_operator_succeeds(
     """
     title = "Foo"
     operator = create_random_operator(db)
+    selected_tests = {
+        "collections": [
+            {
+                "public_id": "sample_tests",
+                "test_suites": [
+                    {
+                        "public_id": "SampleTestSuite1",
+                        "test_cases": [
+                            {"public_id": "TCSS1001", "iterations": 1},
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
     json_data = {
-        "test_run_execution_in": {"title": title, "operator_id": operator.id},
-        "selected_tests": {
-            "sample_tests": {
-                "SampleTestSuite1": {"TCSS1001": 1},
-            },
-        },
+        "title": title,
+        "operator_id": operator.id,
+        "selected_tests": selected_tests,
     }
     response = client.post(
         f"{settings.API_V1_STR}/test_run_executions/",
@@ -149,17 +159,26 @@ def test_create_test_run_execution_with_selected_tests_project_operator_succeeds
     title = "TestRunExecutionFoo"
     project = create_random_project(db)
     operator = create_random_operator(db)
+    selected_tests = {
+        "collections": [
+            {
+                "public_id": "sample_tests",
+                "test_suites": [
+                    {
+                        "public_id": "SampleTestSuite1",
+                        "test_cases": [
+                            {"public_id": "TCSS1001", "iterations": 1},
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
     json_data = {
-        "test_run_execution_in": {
-            "title": title,
-            "operator_id": operator.id,
-            "project_id": project.id,
-        },
-        "selected_tests": {
-            "sample_tests": {
-                "SampleTestSuite1": {"TCSS1001": 1},
-            },
-        },
+        "title": title,
+        "operator_id": operator.id,
+        "project_id": project.id,
+        "selected_tests": selected_tests,
     }
     response = client.post(
         f"{settings.API_V1_STR}/test_run_executions/",
@@ -218,10 +237,8 @@ def test_create_test_run_execution_with_selected_tests_with_two_suites_succeeds(
         ]
     }
     json_data = {
-        "test_run_execution_in": {
-            "title": title,
-            "description": description,
-        },
+        "title": title,
+        "description": description,
         "selected_tests": selected_tests,
     }
     response = client.post(
@@ -256,10 +273,8 @@ def test_create_test_run_execution_without_selected_tests_fails(
     title = "TestRunExecutionFoo"
     description = random_lower_string()
     json_data = {
-        "test_run_execution_in": {
-            "title": title,
-            "description": description,
-        }
+        "title": title,
+        "description": description,
     }
     response = client.post(
         f"{settings.API_V1_STR}/test_run_executions/",
@@ -859,9 +874,7 @@ async def test_test_runner_status_running(
         ]
     }
 
-    test_runner = load_test_run_for_test_cases(
-        db=db, test_cases=SelectedTests(**selected_tests)
-    )
+    test_runner = load_test_run_for_selected_tests(db=db, selected_tests=selected_tests)
 
     # Start running tests (async)
     run_task = asyncio.create_task(test_runner.run())

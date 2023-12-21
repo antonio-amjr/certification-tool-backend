@@ -49,6 +49,7 @@ class TestRunExecutionBaseWithRelationships(TestRunExecutionBase):
 class TestRunExecutionCreate(TestRunExecutionBaseWithRelationships):
     # TODO(#124): Require project ID when UI supports project management.
     operator_id: Optional[int]
+    selected_tests: dict
 
 
 # Properties shared by models stored in DB

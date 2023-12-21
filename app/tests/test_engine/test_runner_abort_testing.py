@@ -20,12 +20,11 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models.test_enums import TestStateEnum
-from app.schemas import SelectedTests
 from app.test_engine.test_runner import TestRunner
 from app.tests.utils.test_runner import (
     get_test_case_for_public_id,
     get_test_suite_for_public_id,
-    load_test_run_for_test_cases,
+    load_test_run_for_selected_tests,
 )
 from test_collections.tool_unit_tests.test_suite_expected import TestSuiteExpected
 from test_collections.tool_unit_tests.test_suite_expected.tctr_expected_pass import (
@@ -230,9 +229,7 @@ def __load_abort_tests(db: Session) -> Tuple[TestSuiteNeverEnding, TCNeverEnding
         ]
     }
 
-    test_runner = load_test_run_for_test_cases(
-        db=db, test_cases=SelectedTests(**selected_tests)
-    )
+    test_runner = load_test_run_for_selected_tests(db=db, selected_tests=selected_tests)
     run = test_runner.test_run
     assert run is not None
 
@@ -275,9 +272,7 @@ def __load_abort_tests_2_suites(
             }
         ]
     }
-    test_runner = load_test_run_for_test_cases(
-        db=db, test_cases=SelectedTests(**selected_tests)
-    )
+    test_runner = load_test_run_for_selected_tests(db=db, selected_tests=selected_tests)
     run = test_runner.test_run
     assert run is not None
 
@@ -327,9 +322,7 @@ def __load_abort_tests_2_tests_1_suite(
             }
         ]
     }
-    test_runner = load_test_run_for_test_cases(
-        db=db, test_cases=SelectedTests(**selected_tests)
-    )
+    test_runner = load_test_run_for_selected_tests(db=db, selected_tests=selected_tests)
     run = test_runner.test_run
     assert run is not None
 

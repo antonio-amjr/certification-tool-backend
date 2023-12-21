@@ -31,11 +31,7 @@ from app.models.test_run_execution import TestRunExecution
 from app.test_engine import TEST_ENGINE_ABORTING_TESTING_MESSAGE
 from app.test_engine.test_runner import AbortError, LoadingError, TestRunner
 from app.test_engine.test_script_manager import TestNotFound
-from app.utils import (
-    formated_datetime_now_str,
-    remove_title_date,
-    selected_tests_from_execution,
-)
+from app.utils import formated_datetime_now_str, remove_title_date
 from app.version import version_information
 
 router = APIRouter()
@@ -77,13 +73,12 @@ def create_test_run_execution(
     *,
     db: Session = Depends(get_db),
     test_run_execution_in: schemas.TestRunExecutionCreate,
-    selected_tests: schemas.SelectedTests,
 ) -> TestRunExecution:
     """
     Create new test run execution.
     """
-    test_run_execution = crud.test_run_execution.create_with_selected_tests(
-        db=db, obj_in=test_run_execution_in, selected_tests=selected_tests
+    test_run_execution = crud.test_run_execution.create(
+        db=db, obj_in=test_run_execution_in
     )
     return test_run_execution
 
@@ -254,16 +249,14 @@ def repeat_test_run_execution(
     date_now = formated_datetime_now_str()
     title += date_now
 
-    test_run_execution_in = schemas.TestRunExecutionCreate(title=title)
+    test_run_execution_in = schemas.TestRunExecutionCreate(
+        title=title, selected_tests=execution_to_repeat.selected_tests
+    )
     test_run_execution_in.description = execution_to_repeat.description
     test_run_execution_in.project_id = execution_to_repeat.project_id
     test_run_execution_in.operator_id = execution_to_repeat.operator_id
 
-    return crud.test_run_execution.create_with_selected_tests(
-        db=db,
-        obj_in=test_run_execution_in,
-        selected_tests=selected_tests_from_execution(execution_to_repeat),
-    )
+    return crud.test_run_execution.create(db=db, obj_in=test_run_execution_in)
 
 
 @router.delete("/{id}", response_model=schemas.TestRunExecutionInDBBase)

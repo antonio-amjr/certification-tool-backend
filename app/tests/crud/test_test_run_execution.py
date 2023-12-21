@@ -28,7 +28,6 @@ from sqlalchemy.orm import Session
 from app import crud, models, schemas
 from app.crud.crud_test_run_execution import ImportError
 from app.models.test_enums import TestStateEnum
-from app.schemas import SelectedTests
 from app.schemas.test_run_execution import (
     TestRunExecutionCreate,
     TestRunExecutionWithStats,
@@ -51,11 +50,14 @@ def test_get_test_run_execution(db: Session) -> None:
     # Create build new test_run_execution object
     title = random_lower_string()
     description = random_lower_string()
+    selected_tests = {"collections": []}
     test_run_execution_dict = random_test_run_execution_dict(
         title=title, description=description
     )
 
-    test_run_execution_in = TestRunExecutionCreate(**test_run_execution_dict)
+    test_run_execution_in = TestRunExecutionCreate(
+        **test_run_execution_dict, selected_tests=selected_tests
+    )
 
     # Save create test_run_execution in DB
     test_run_execution = crud.test_run_execution.create(
@@ -72,6 +74,7 @@ def test_get_test_run_execution(db: Session) -> None:
     assert test_run_execution.id == stored_test_run_execution.id
     assert test_run_execution.title == stored_test_run_execution.title
     assert test_run_execution.description == stored_test_run_execution.description
+    assert test_run_execution.selected_tests == selected_tests
 
 
 def test_test_run_archive(db: Session) -> None:
@@ -130,9 +133,12 @@ def test_test_run_unarchive_with_description(db: Session) -> None:
 def test_delete_test_run_execution(db: Session) -> None:
     # Create build new test_run_execution object
     title = random_lower_string()
+    selected_tests = {"collections": []}
     test_run_execution_dict = random_test_run_execution_dict(title=title)
 
-    test_run_execution_in = TestRunExecutionCreate(**test_run_execution_dict)
+    test_run_execution_in = TestRunExecutionCreate(
+        **test_run_execution_dict, selected_tests=selected_tests
+    )
 
     # Save create test_run_execution in DB
     test_run_execution = crud.test_run_execution.create(
@@ -148,6 +154,7 @@ def test_delete_test_run_execution(db: Session) -> None:
     assert test_run_execution_deleted is not None
     assert test_run_execution.id == test_run_execution_deleted.id
     assert test_run_execution.title == test_run_execution_deleted.title
+    assert test_run_execution.selected_tests == selected_tests
 
     # load stored test_run_execution from DB
     test_run_execution_none = crud.test_run_execution.get(
@@ -161,9 +168,7 @@ def test_delete_test_run_execution_with_a_test_suite(db: Session) -> None:
     # Create build new test_run_execution object
     title = random_lower_string()
     test_run_execution_dict = random_test_run_execution_dict(title=title)
-
-    test_run_execution_in = TestRunExecutionCreate(**test_run_execution_dict)
-    selected_tests = {
+    test_run_execution_dict["selected_tests"] = {
         "collections": [
             {
                 "public_id": "sample_tests",
@@ -177,11 +182,11 @@ def test_delete_test_run_execution_with_a_test_suite(db: Session) -> None:
         ]
     }
 
+    test_run_execution_in = TestRunExecutionCreate(**test_run_execution_dict)
+
     # Save create test_run_execution in DB
-    test_run_execution = crud.test_run_execution.create_with_selected_tests(
-        db=db,
-        obj_in=test_run_execution_in,
-        selected_tests=SelectedTests(**selected_tests),
+    test_run_execution = crud.test_run_execution.create(
+        db=db, obj_in=test_run_execution_in
     )
     assert len(test_run_execution.test_suite_executions) == 1
     suite = test_run_execution.test_suite_executions[0]
@@ -314,12 +319,12 @@ def test_create_test_run_execution_from_selected_tests(db: Session) -> None:
 
     # Prepare data for test_run_execution
     test_run_execution_title = "Test Execution title"
-    test_run_execution_data = TestRunExecutionCreate(title=test_run_execution_title)
+    test_run_execution_data = TestRunExecutionCreate(
+        title=test_run_execution_title, selected_tests=selected_tests
+    )
 
-    test_run_execution = crud.test_run_execution.create_with_selected_tests(
-        db=db,
-        obj_in=test_run_execution_data,
-        selected_tests=SelectedTests(**selected_tests),
+    test_run_execution = crud.test_run_execution.create(
+        db=db, obj_in=test_run_execution_data
     )
 
     # Assert direct properties

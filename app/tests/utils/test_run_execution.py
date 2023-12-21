@@ -22,7 +22,6 @@ from sqlalchemy.orm import Session
 from app import crud, models
 from app.models import TestRunExecution
 from app.models.test_enums import TestStateEnum
-from app.schemas import SelectedTests
 from app.schemas.test_run_execution import TestRunExecutionCreate
 from app.tests.utils.project import create_random_project
 
@@ -80,7 +79,7 @@ def create_random_test_run_execution_archived(
 
 
 def create_random_test_run_execution(
-    db: Session, selected_tests: SelectedTests = SelectedTests(), **kwargs: Any
+    db: Session, selected_tests: dict = {}, **kwargs: Any
 ) -> models.TestRunExecution:
     test_run_execution_dict = random_test_run_execution_dict(**kwargs)
 
@@ -88,12 +87,9 @@ def create_random_test_run_execution(
         project = create_random_project(db)
         test_run_execution_dict["project_id"] = project.id
 
+    test_run_execution_dict["selected_tests"] = selected_tests
     test_run_execution_in = TestRunExecutionCreate(**test_run_execution_dict)
-    return crud.test_run_execution.create_with_selected_tests(
-        db=db,
-        obj_in=test_run_execution_in,
-        selected_tests=selected_tests,
-    )
+    return crud.test_run_execution.create(db=db, obj_in=test_run_execution_in)
 
 
 def create_random_test_run_execution_with_test_case_states(
@@ -120,7 +116,7 @@ def create_random_test_run_execution_with_test_case_states(
     }
 
     test_run_execution = create_random_test_run_execution(
-        db=db, selected_tests=SelectedTests(**selected_tests)
+        db=db, selected_tests=selected_tests
     )
 
     test_suite_execution = test_run_execution.test_suite_executions[0]
@@ -140,7 +136,7 @@ def create_random_test_run_execution_with_test_case_states(
 def create_test_run_execution_with_some_test_cases(
     db: Session, **kwargs: Any
 ) -> TestRunExecution:
-    selected_tests_dict = {
+    selected_tests = {
         "collections": [
             {
                 "public_id": "sample_tests",
@@ -157,7 +153,6 @@ def create_test_run_execution_with_some_test_cases(
             }
         ]
     }
-    selected_tests = SelectedTests(**selected_tests_dict)
     return create_random_test_run_execution(
         db=db, selected_tests=selected_tests, **kwargs
     )

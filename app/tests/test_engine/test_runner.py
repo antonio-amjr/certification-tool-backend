@@ -20,7 +20,6 @@ from sqlalchemy.orm import Session
 
 from app import crud
 from app.models.test_enums import TestStateEnum
-from app.schemas import SelectedTests
 from app.schemas.test_run_execution import TestRunExecutionCreate
 from app.test_engine.test_runner import (
     AbortError,
@@ -34,7 +33,7 @@ from app.tests.utils.test_runner import (
     get_test_case_for_public_id,
     get_test_suite_for_public_id,
     load_and_run_tool_unit_tests,
-    load_test_run_for_test_cases,
+    load_test_run_for_selected_tests,
 )
 from test_collections.tool_unit_tests.test_suite_expected import TestSuiteExpected
 from test_collections.tool_unit_tests.test_suite_expected.tctr_expected_error import (
@@ -76,12 +75,12 @@ async def test_test_runner(db: Session) -> None:
 
     # Prepare data for test_run_execution
     test_run_execution_title = "Test Execution title"
-    test_run_execution_data = TestRunExecutionCreate(title=test_run_execution_title)
+    test_run_execution_data = TestRunExecutionCreate(
+        title=test_run_execution_title, selected_tests=selected_tests
+    )
 
-    test_run_execution = crud.test_run_execution.create_with_selected_tests(
-        db=db,
-        obj_in=test_run_execution_data,
-        selected_tests=SelectedTests(**selected_tests),
+    test_run_execution = crud.test_run_execution.create(
+        db=db, obj_in=test_run_execution_data
     )
 
     assert test_run_execution is not None
@@ -133,7 +132,7 @@ async def test_test_runner_abort_in_memory(db: Session) -> None:
     }
 
     test_run_execution = create_random_test_run_execution(
-        db=db, selected_tests=SelectedTests(**selected_tests)
+        db=db, selected_tests=selected_tests
     )
 
     assert test_run_execution is not None
@@ -211,7 +210,7 @@ async def test_test_runner_abort_db_sync(db: Session) -> None:
     }
 
     test_run_execution = create_random_test_run_execution(
-        db=db, selected_tests=SelectedTests(**selected_tests)
+        db=db, selected_tests=selected_tests
     )
 
     assert test_run_execution is not None
@@ -389,14 +388,12 @@ async def test_test_runner_load__load_multiple_runs_simultaneously(db: Session) 
         ]
     }
 
-    test_runner = load_test_run_for_test_cases(
-        db=db, test_cases=SelectedTests(**selected_tests)
-    )
+    test_runner = load_test_run_for_selected_tests(db=db, selected_tests=selected_tests)
     assert test_runner.state != TestRunnerState.IDLE
 
     # Create a 2nd test and attempt to load it
     test_run_execution = create_random_test_run_execution(
-        db=db, selected_tests=SelectedTests(**selected_tests)
+        db=db, selected_tests=selected_tests
     )
 
     with pytest.raises(LoadingError):
@@ -442,4 +439,4 @@ async def test_test_runner_non_existant_test_case(db: Session) -> None:
     }
 
     with pytest.raises(TestCaseNotFound):
-        load_test_run_for_test_cases(db=db, test_cases=SelectedTests(**selected_tests))
+        load_test_run_for_selected_tests(db=db, selected_tests=selected_tests)
