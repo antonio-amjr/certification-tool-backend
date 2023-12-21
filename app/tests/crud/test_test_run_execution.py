@@ -28,7 +28,6 @@ from sqlalchemy.orm import Session
 from app import crud, models, schemas
 from app.crud.crud_test_run_execution import ImportError
 from app.models.test_enums import TestStateEnum
-from app.schemas import SelectedTests
 from app.schemas.test_run_execution import (
     TestRunExecutionCreate,
     TestRunExecutionWithStats,
