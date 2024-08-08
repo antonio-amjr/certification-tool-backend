@@ -76,7 +76,9 @@ class TestCase(TestObservable):
         Returns:
             Project: project in which test case is being executed
         """
-        return self.test_case_execution.test_suite_execution.test_run_execution.project
+        return (
+            self.test_case_execution.test_suite_execution.test_collection_execution.test_run_execution.project  # noqa: E501
+        )
 
     @property
     def config(self) -> dict:

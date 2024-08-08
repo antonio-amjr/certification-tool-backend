@@ -163,28 +163,21 @@ def read_information_from_file(filepath: Path) -> str:
 def selected_tests_from_execution(run: TestRunExecution) -> TestSelection:
     selected_tests: TestSelection = {}
 
-    for suite in run.test_suite_executions:
-        selected_tests.setdefault(suite.collection_id, {})
-        selected_tests[suite.collection_id].setdefault(suite.public_id, {})
-        selected_tests[suite.collection_id][suite.public_id]
-        for case in suite.test_case_executions:
-            if (
-                case.public_id
-                in selected_tests[suite.collection_id][suite.public_id].keys()
-            ):
-                selected_tests[suite.collection_id][suite.public_id][
-                    case.public_id
-                ] += 1
-            else:
-                case_count = (
-                    int(case.test_case_metadata.count)
-                    if case.test_case_metadata.count
-                    else 1
-                )
-                selected_tests[suite.collection_id][suite.public_id].update(
-                    {case.public_id: case_count}
-                )
-
+    for collection in run.test_collection_executions:
+        selected_tests.setdefault(collection.name, {})
+        for suite in collection.test_suite_executions:
+            selected_tests[collection.name].setdefault(suite.public_id, {})
+            suite_dict = selected_tests[collection.name][suite.public_id]
+            for case in suite.test_case_executions:
+                if case.public_id in suite_dict.keys():
+                    suite_dict[case.public_id] += 1
+                else:
+                    case_count = (
+                        int(case.test_case_metadata.count)
+                        if case.test_case_metadata.count
+                        else 1
+                    )
+                    suite_dict.update({case.public_id: case_count})
     return selected_tests
 
 
