@@ -33,6 +33,7 @@ from app.schemas.test_selection import (
     TestSuiteSelection,
 )
 from app.singleton import Singleton
+from app.test_engine.models.test_collection import TestCollection
 from app.test_engine.models.test_run import TestRun
 from app.test_engine.models.test_step import TestStep
 
@@ -190,18 +191,13 @@ class TestScriptManager(object, metaclass=Singleton):
             test_case_declaration = self.__test_case_declaration(
                 public_id=test_case_id, test_suite_declaration=test_suite
             )
-            test_cases = []
+            required_iterations = (
+                1 if test_suite.public_id == "Performance Test Suite" else iterations
+            )
 
-            if test_suite.public_id == "Performance Test Suite":
-                test_cases = self.__pending_test_cases_for_iterations(
-                    test_case=test_case_declaration, iterations=1
-                )
-
-                test_cases[0].test_case_metadata.count = iterations
-            else:
-                test_cases = self.__pending_test_cases_for_iterations(
-                    test_case=test_case_declaration, iterations=iterations
-                )
+            test_cases = self.__pending_test_cases_for_iterations(
+                test_case=test_case_declaration, iterations=required_iterations
+            )
             suite_test_cases.extend(test_cases)
 
         return suite_test_cases
@@ -278,15 +274,36 @@ class TestScriptManager(object, metaclass=Singleton):
         test_run_execution: TestRunExecution,
     ) -> TestRun:
         test_run = TestRun(test_run_execution)
-        self.__load_test_run_test_suites(db=db, test_run=test_run)
+        # self.__load_test_run_test_suites(db=db, test_run=test_run)
+        self.__load_test_run_test_collections(db=db, test_run=test_run)
         return test_run
 
-    def __load_test_run_test_suites(self, db: Session, test_run: TestRun) -> None:
-        test_run.test_suites = []
-        for test_suite_execution in test_run.test_run_execution.test_suite_executions:
-            # TODO: error handling for TestSuite Missing
-            # TODO: Security: Validate TestSuite format with regex,
-            # cannot allow arbitrary strings.
+    def __load_test_run_test_collections(self, db: Session, test_run: TestRun) -> None:
+        test_run.test_collections = []
+        for (
+            test_collection_execution
+        ) in test_run.test_run_execution.test_collection_executions:
+            test_collection_declaration = self.__test_collection_declaration(
+                test_collection_execution.name
+            )
+
+            TestCollectionClass = test_collection_declaration.class_ref
+            test_collection = TestCollectionClass(test_collection_execution)
+
+            self.__load_test_run_test_suites(db, test_collection)
+
+            test_run.test_collections.append(test_collection)
+
+    def __load_test_run_test_suites(
+        self, db: Session, test_collection: TestCollection
+    ) -> None:
+        # TODO: error handling for TestSuite Missing
+        # TODO: Security: Validate TestSuite format with regex,
+        # cannot allow arbitrary strings.
+
+        for (
+            test_suite_execution
+        ) in test_collection.test_collection_execution.test_suite_executions:
             test_suite_declaration = self.__test_suite_declaration(
                 test_suite_execution.public_id
             )
@@ -298,7 +315,16 @@ class TestScriptManager(object, metaclass=Singleton):
                 test_suite_declaration=test_suite_declaration,
                 test_case_executions=test_suite_execution.test_case_executions,
             )
-            test_run.test_suites.append(test_suite)
+            test_collection.test_suites.append(test_suite)
+
+    def __test_collection_declaration(self, name: str) -> TestCollectionDeclaration:
+        for collection in self.test_collections.values():
+            if name == collection.name:
+                return collection
+
+        raise TestCollectionNotFound(
+            f"Could not find test_collection with name: {name}"
+        )
 
     def __test_suite_declaration(self, public_id: str) -> TestSuiteDeclaration:
         # search all collections for test suite

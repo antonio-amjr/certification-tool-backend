@@ -1,14 +1,14 @@
 """Adding count on metadata to support Performance Test
 
 Revision ID: 0a251edfd975
-Revises: 96ee37627a48
+Revises: e2c185af1226
 Create Date: 2024-05-16 06:36:51.663230
 
 """
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "0a251edfd975"

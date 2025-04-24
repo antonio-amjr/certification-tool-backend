@@ -67,7 +67,13 @@ async def test_test_runner(db: Session) -> None:
 
     # Prepare data for test_run_execution
     test_run_execution_title = "Test Execution title"
-    test_run_execution_data = TestRunExecutionCreate(title=test_run_execution_title)
+    test_run_execution_data = TestRunExecutionCreate(
+        title=test_run_execution_title,
+        description=None,
+        test_run_config_id=None,
+        project_id=None,
+        operator_id=None,
+    )
 
     test_run_execution = crud.test_run_execution.create(
         db=db, obj_in=test_run_execution_data, selected_tests=selected_tests
@@ -76,7 +82,7 @@ async def test_test_runner(db: Session) -> None:
     assert test_run_execution is not None
 
     # Get TestRunner (singleton)
-    test_runner = TestRunner()
+    test_runner: TestRunner = TestRunner()
 
     # Ensure initial state is IDLE
     assert test_runner.state == TestRunnerState.IDLE
@@ -120,7 +126,7 @@ async def test_test_runner_abort_in_memory(db: Session) -> None:
     assert test_run_execution is not None
 
     # Get TestRunner (singleton)
-    test_runner = TestRunner()
+    test_runner: TestRunner = TestRunner()
 
     # Load tests and assert state is READY
     test_runner.load_test_run(test_run_execution.id)
@@ -190,7 +196,7 @@ async def test_test_runner_abort_db_sync(db: Session) -> None:
     assert test_run_execution is not None
 
     # Get TestRunner (singleton)
-    test_runner = TestRunner()
+    test_runner: TestRunner = TestRunner()
 
     # Load tests and assert state is Ready
     test_runner.load_test_run(test_run_execution.id)
@@ -215,10 +221,15 @@ async def test_test_runner_abort_db_sync(db: Session) -> None:
     # never ending test step and everything after is expected to be cancelled:
     db_test_run_execution = crud.test_run_execution.get(db=db, id=test_run_execution.id)
     assert db_test_run_execution is not None
-    assert db_test_run_execution.test_suite_execution_count == 1
+    assert (
+        db_test_run_execution.test_collection_executions[0].test_suite_execution_count
+        == 1
+    )
     assert db_test_run_execution.state == TestStateEnum.CANCELLED
 
-    db_test_suite_execution = db_test_run_execution.test_suite_executions[0]
+    db_test_suite_execution = db_test_run_execution.test_collection_executions[
+        0
+    ].test_suite_executions[0]
     assert db_test_suite_execution is not None
 
     # Assert "NeverEnding" test case cancelled (at least 2 last cancelled)
@@ -344,11 +355,20 @@ async def test_runner_not_all_test_cases_not_applicable(db: Session) -> None:
 
     assert runner.state == TestRunnerState.IDLE
     assert run.state == TestStateEnum.PASSED
-    assert run.test_suites[0].state == TestStateEnum.PASSED
-    assert run.test_suites[0].test_cases[0].state == TestStateEnum.NOT_APPLICABLE
-    assert run.test_suites[0].test_cases[1].state == TestStateEnum.PASSED
-    assert run.test_suites[1].state == TestStateEnum.NOT_APPLICABLE
-    assert run.test_suites[1].test_cases[0].state == TestStateEnum.NOT_APPLICABLE
+    assert run.test_collections[0].test_suites[0].state == TestStateEnum.PASSED
+    assert (
+        run.test_collections[0].test_suites[0].test_cases[0].state
+        == TestStateEnum.NOT_APPLICABLE
+    )
+    assert (
+        run.test_collections[0].test_suites[0].test_cases[1].state
+        == TestStateEnum.PASSED
+    )
+    assert run.test_collections[0].test_suites[1].state == TestStateEnum.NOT_APPLICABLE
+    assert (
+        run.test_collections[0].test_suites[1].test_cases[0].state
+        == TestStateEnum.NOT_APPLICABLE
+    )
 
 
 @pytest.mark.asyncio
@@ -378,10 +398,16 @@ async def test_runner_all_test_cases_not_applicable(db: Session) -> None:
 
     assert runner.state == TestRunnerState.IDLE
     assert run.state == TestStateEnum.NOT_APPLICABLE
-    assert run.test_suites[0].state == TestStateEnum.NOT_APPLICABLE
-    assert run.test_suites[0].test_cases[0].state == TestStateEnum.NOT_APPLICABLE
-    assert run.test_suites[1].state == TestStateEnum.NOT_APPLICABLE
-    assert run.test_suites[1].test_cases[0].state == TestStateEnum.NOT_APPLICABLE
+    assert run.test_collections[0].test_suites[0].state == TestStateEnum.NOT_APPLICABLE
+    assert (
+        run.test_collections[0].test_suites[0].test_cases[0].state
+        == TestStateEnum.NOT_APPLICABLE
+    )
+    assert run.test_collections[0].test_suites[1].state == TestStateEnum.NOT_APPLICABLE
+    assert (
+        run.test_collections[0].test_suites[1].test_cases[0].state
+        == TestStateEnum.NOT_APPLICABLE
+    )
 
 
 @pytest.mark.asyncio
@@ -442,7 +468,7 @@ def test_test_runner_abort_no_run(db: Session) -> None:
 
     This should not be allowed and the test runner should raise an AbortError.
     """
-    test_runner = TestRunner()
+    test_runner: TestRunner = TestRunner()
     assert test_runner.state == TestRunnerState.IDLE
 
     with pytest.raises(AbortError):

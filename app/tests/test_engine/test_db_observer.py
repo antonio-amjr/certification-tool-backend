@@ -64,14 +64,14 @@ async def test_test_db_observer_test_run_started_at(db: Session) -> None:
 
 @pytest.mark.asyncio
 async def test_test_db_observer_test_suite_started_at(db: Session) -> None:
-    test_script_manager = TestScriptManager()
+    test_script_manager: TestScriptManager = TestScriptManager()
     test_db_observer = TestDBObserver()
 
     test_run_execution = create_test_run_execution_with_some_test_cases(db=db)
 
     # Getting newly created test suites
     test_run = test_script_manager.get_test_run(db, test_run_execution)
-    test_suites = test_run.test_suites
+    test_suites = test_run.test_collections[0].test_suites
     assert 1 == len(test_suites)
     test_suite = test_suites[0]
 
@@ -79,13 +79,32 @@ async def test_test_db_observer_test_suite_started_at(db: Session) -> None:
     test_suite.state = TestStateEnum.EXECUTING
 
     test_db_observer.dispatch(test_suite)
-    assert TestStateEnum.EXECUTING == test_run_execution.test_suite_executions[0].state
-    assert test_run_execution.test_suite_executions[0].started_at is not None
-    assert test_run_execution.test_suite_executions[0].completed_at is None
+    assert (
+        TestStateEnum.EXECUTING
+        == test_run_execution.test_collection_executions[0]
+        .test_suite_executions[0]
+        .state
+    )
+    assert (
+        test_run_execution.test_collection_executions[0]
+        .test_suite_executions[0]
+        .started_at
+        is not None
+    )
+    assert (
+        test_run_execution.test_collection_executions[0]
+        .test_suite_executions[0]
+        .completed_at
+        is None
+    )
     assert len(test_run_execution.log) == 0
 
     # Note original start time
-    start_time = test_run_execution.test_suite_executions[0].started_at
+    start_time = (
+        test_run_execution.test_collection_executions[0]
+        .test_suite_executions[0]
+        .started_at
+    )
 
     # Wait/sleep and Dispatch again to trigger DB update
     test_run_execution.append_to_log(
@@ -94,22 +113,37 @@ async def test_test_db_observer_test_suite_started_at(db: Session) -> None:
     await asyncio.sleep(2)
 
     test_db_observer.dispatch(test_suite)
-    assert TestStateEnum.EXECUTING == test_run_execution.test_suite_executions[0].state
-    assert test_run_execution.test_suite_executions[0].started_at == start_time
-    assert test_run_execution.test_suite_executions[0].completed_at is None
+    assert (
+        TestStateEnum.EXECUTING
+        == test_run_execution.test_collection_executions[0]
+        .test_suite_executions[0]
+        .state
+    )
+    assert (
+        test_run_execution.test_collection_executions[0]
+        .test_suite_executions[0]
+        .started_at
+        == start_time
+    )
+    assert (
+        test_run_execution.test_collection_executions[0]
+        .test_suite_executions[0]
+        .completed_at
+        is None
+    )
     assert len(test_run_execution.log) == 1
 
 
 @pytest.mark.asyncio
 async def test_test_db_observer_test_case_started_at(db: Session) -> None:
-    test_script_manager = TestScriptManager()
+    test_script_manager: TestScriptManager = TestScriptManager()
     test_db_observer = TestDBObserver()
 
     test_run_execution = create_test_run_execution_with_some_test_cases(db=db)
 
     # Getting newly created test suites
     test_run = test_script_manager.get_test_run(db, test_run_execution)
-    test_suites = test_run.test_suites
+    test_suites = test_run.test_collections[0].test_suites
     assert 1 == len(test_suites)
     test_suite = test_suites[0]
 
@@ -138,14 +172,14 @@ async def test_test_db_observer_test_case_started_at(db: Session) -> None:
 
 @pytest.mark.asyncio
 async def test_test_db_observer_test_step_started_at(db: Session) -> None:
-    test_script_manager = TestScriptManager()
+    test_script_manager: TestScriptManager = TestScriptManager()
     test_db_observer = TestDBObserver()
 
     test_run_execution = create_test_run_execution_with_some_test_cases(db=db)
 
     # Getting newly created test suites
     test_run = test_script_manager.get_test_run(db, test_run_execution)
-    test_suites = test_run.test_suites
+    test_suites = test_run.test_collections[0].test_suites
     assert 1 == len(test_suites)
     test_suite = test_suites[0]
 
@@ -177,14 +211,14 @@ async def test_test_db_observer_test_step_started_at(db: Session) -> None:
 
 
 def test_test_db_observer_update(db: Session) -> None:
-    test_script_manager = TestScriptManager()
+    test_script_manager: TestScriptManager = TestScriptManager()
     test_db_observer = TestDBObserver()
 
     test_run_execution = create_test_run_execution_with_some_test_cases(db=db)
 
     # Getting newly created test suites
     test_run = test_script_manager.get_test_run(db, test_run_execution)
-    test_suites = test_run.test_suites
+    test_suites = test_run.test_collections[0].test_suites
     assert 1 == len(test_suites)
     test_suite = test_suites[0]
 
@@ -192,8 +226,18 @@ def test_test_db_observer_update(db: Session) -> None:
     test_suite.state = TestStateEnum.EXECUTING
 
     test_db_observer.dispatch(test_suite)
-    assert TestStateEnum.EXECUTING == test_run_execution.test_suite_executions[0].state
-    assert test_run_execution.test_suite_executions[0].started_at is not None
+    assert (
+        TestStateEnum.EXECUTING
+        == test_run_execution.test_collection_executions[0]
+        .test_suite_executions[0]
+        .state
+    )
+    assert (
+        test_run_execution.test_collection_executions[0]
+        .test_suite_executions[0]
+        .started_at
+        is not None
+    )
 
     # Adding an error to a Test suite
     suite_error = "This is a test suite error"
@@ -208,8 +252,18 @@ def test_test_db_observer_update(db: Session) -> None:
     test_suite.state = TestStateEnum.PASSED
 
     test_db_observer.dispatch(test_suite)
-    assert TestStateEnum.PASSED == test_run_execution.test_suite_executions[0].state
-    assert test_run_execution.test_suite_executions[0].completed_at is not None
+    assert (
+        TestStateEnum.PASSED
+        == test_run_execution.test_collection_executions[0]
+        .test_suite_executions[0]
+        .state
+    )
+    assert (
+        test_run_execution.test_collection_executions[0]
+        .test_suite_executions[0]
+        .completed_at
+        is not None
+    )
 
     # Fetching Test cases.
     assert 6 == len(test_suite.test_cases)

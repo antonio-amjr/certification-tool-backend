@@ -113,7 +113,9 @@ def create_random_test_run_execution_with_test_case_states(
         db=db, selected_tests=selected_tests
     )
 
-    test_suite_execution = test_run_execution.test_suite_executions[0]
+    test_suite_execution = test_run_execution.test_collection_executions[
+        0
+    ].test_suite_executions[0]
     test_case_executions = test_suite_execution.test_case_executions
     # set test_cases statuses
     test_case_idx = 0
@@ -156,58 +158,77 @@ test_run_execution_base_dict = {
             "level": "INFO",
             "timestamp": 1684878223.482982,
             "message": "Run Test Runner is Ready",
+            "test_collection_execution_index": None,
             "test_suite_execution_index": None,
             "test_case_execution_index": None,
             "test_step_execution_index": None,
         },
     ],
-    "test_suite_executions": [
+    "test_collection_executions": [
         {
+            "name": "SDK YAML Tests",
+            "execution_index": 0,
+            "mandatory": False,
             "state": "passed",
-            "public_id": "FirstChipToolSuite",
-            "started_at": "2023-05-23T21:43:43.629123",
-            "completed_at": "2023-05-23T23:34:39.155045",
+            "created_at": "2023-05-23T21:43:31.235973",
+            "started_at": "2023-05-23T21:43:40.629123",
+            "completed_at": "2023-05-23T23:44:39.155045",
             "errors": [],
-            "created_at": "2023-05-23T21:43:31.395973",
-            "test_suite_metadata": {
-                "public_id": "FirstChipToolSuite",
-                "title": "FirstChipToolSuite",
-                "description": "FirstChipToolSuite",
-                "version": "0.0.1",
+            "test_collection_metadata": {
+                "name": "SDK YAML Tests",
+                "path": "/collection/path",
+                "version": "1.0.0",
                 "source_hash": "de7f3c1390cd283f91f74a334aaf0ec3",
                 "mandatory": False,
             },
-            "execution_index": 0,
-            "collection_id": "SDK YAML Tests",
-            "test_case_executions": [
+            "test_suite_executions": [
                 {
                     "state": "passed",
-                    "public_id": "TC-ACE-1.1",
-                    "started_at": "2023-05-23T21:44:02.381832",
-                    "completed_at": "2023-05-23T21:44:28.937346",
+                    "public_id": "FirstChipToolSuite",
+                    "started_at": "2023-05-23T21:43:43.629123",
+                    "completed_at": "2023-05-23T23:34:39.155045",
                     "errors": [],
-                    "created_at": "2023-05-23T21:43:31.451550",
-                    "mandatory": False,
-                    "test_case_metadata": {
-                        "public_id": "TC-ACE-1.1",
-                        "title": "TC-ACE-1.1",
-                        "description": "42.1.1. [TC-ACE-1.1] Privileges",
-                        "version": "0.0.1",
+                    "created_at": "2023-05-23T21:43:31.395973",
+                    "test_suite_metadata": {
+                        "public_id": "FirstChipToolSuite",
+                        "title": "FirstChipToolSuite",
+                        "description": "FirstChipToolSuite",
+                        "version": "1.0.1",
                         "source_hash": "de7f3c1390cd283f91f74a334aaf0ec3",
                         "mandatory": False,
                     },
                     "execution_index": 0,
-                    "test_step_executions": [
+                    "test_case_executions": [
                         {
                             "state": "passed",
-                            "title": "Start chip-tool test",
-                            "started_at": "2023-05-23T21:44:02.472236",
-                            "completed_at": "2023-05-23T21:44:09.586133",
+                            "public_id": "TC-ACE-1.1",
+                            "started_at": "2023-05-23T21:44:02.381832",
+                            "completed_at": "2023-05-23T21:44:28.937346",
                             "errors": [],
-                            "failures": [],
-                            "created_at": "2023-05-23T21:43:32.764343",
+                            "created_at": "2023-05-23T21:43:31.451550",
+                            "mandatory": False,
+                            "test_case_metadata": {
+                                "public_id": "TC-ACE-1.1",
+                                "title": "TC-ACE-1.1",
+                                "description": "42.1.1. [TC-ACE-1.1] Privileges",
+                                "version": "1.1.0",
+                                "source_hash": "de7f3c1390cd283f91f74a334aaf0ec3",
+                                "mandatory": False,
+                            },
                             "execution_index": 0,
-                        },
+                            "test_step_executions": [
+                                {
+                                    "state": "passed",
+                                    "title": "Start chip-tool test",
+                                    "started_at": "2023-05-23T21:44:02.472236",
+                                    "completed_at": "2023-05-23T21:44:09.586133",
+                                    "errors": [],
+                                    "failures": [],
+                                    "created_at": "2023-05-23T21:43:32.764343",
+                                    "execution_index": 0,
+                                },
+                            ],
+                        }
                     ],
                 }
             ],

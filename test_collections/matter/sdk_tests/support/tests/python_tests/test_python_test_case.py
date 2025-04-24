@@ -24,6 +24,7 @@ import pytest
 from app.default_environment_config import default_environment_config
 from app.models.project import Project
 from app.models.test_case_execution import TestCaseExecution
+from app.models.test_collection_execution import TestCollectionExecution
 from app.models.test_run_execution import TestRunExecution
 from app.models.test_suite_execution import TestSuiteExecution
 from app.test_engine.logger import test_engine_logger
@@ -177,7 +178,7 @@ async def test_python_version_logging() -> None:
 def test_normal_steps_for_python_tests() -> None:
     """Test that python tests include enabled steps."""
     for type in list(MatterTestType):
-        test_step = MatterTestStep(label="Step1")
+        test_step = MatterTestStep(label="Step1", command=None, arguments=None)
         test = python_test_instance(type=type, steps=[test_step])
         case_class: Type[PythonTestCase] = PythonTestCase.class_factory(
             test=test, python_test_version="version", mandatory=False
@@ -191,7 +192,7 @@ def test_normal_steps_for_python_tests() -> None:
 def test_multiple_steps_for_python_tests() -> None:
     """Test that python tests multiple enabled steps are all included."""
     for type in list(MatterTestType):
-        test_step = MatterTestStep(label="StepN")
+        test_step = MatterTestStep(label="StepN", command=None, arguments=None)
         no_steps = 5
         test = python_test_instance(type=type, steps=([test_step] * no_steps))
         case_class: Type[PythonTestCase] = PythonTestCase.class_factory(
@@ -283,8 +284,11 @@ async def test_should_raise_DUTCommissioningError_prompt_commissioning_failed_co
     test_run_execution = TestRunExecution()
     test_run_execution.project = project
 
+    test_collection_execution = TestCollectionExecution()
+    test_collection_execution.test_run_execution = test_run_execution
+
     test_suite_execution = TestSuiteExecution()
-    test_suite_execution.test_run_execution = test_run_execution
+    test_suite_execution.test_collection_execution = test_collection_execution
 
     test_case_execution = TestCaseExecution()
     test_case_execution.test_suite_execution = test_suite_execution
@@ -370,8 +374,11 @@ async def test_legacy_python_test_case_no_new_commissioning() -> None:
     test_run_execution = TestRunExecution()
     test_run_execution.project = project
 
+    test_collection_execution = TestCollectionExecution()
+    test_collection_execution.test_run_execution = test_run_execution
+
     test_suite_execution = TestSuiteExecution()
-    test_suite_execution.test_run_execution = test_run_execution
+    test_suite_execution.test_collection_execution = test_collection_execution
 
     test_case_execution = TestCaseExecution()
     test_case_execution.test_suite_execution = test_suite_execution
@@ -461,8 +468,11 @@ async def test_legacy_python_test_case_new_commissioning() -> None:
     test_run_execution = TestRunExecution()
     test_run_execution.project = project
 
+    test_collection_execution = TestCollectionExecution()
+    test_collection_execution.test_run_execution = test_run_execution
+
     test_suite_execution = TestSuiteExecution()
-    test_suite_execution.test_run_execution = test_run_execution
+    test_suite_execution.test_collection_execution = test_collection_execution
 
     test_case_execution = TestCaseExecution()
     test_case_execution.test_suite_execution = test_suite_execution

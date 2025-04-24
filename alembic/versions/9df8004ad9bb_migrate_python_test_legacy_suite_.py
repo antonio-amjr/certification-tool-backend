@@ -1,13 +1,12 @@
 """Migrate python test legacy suite executions
 
 Revision ID: 9df8004ad9bb
-Revises: 96ee37627a48
+Revises: 0a251edfd975
 Create Date: 2024-04-24 17:26:26.770729
 
 """
 
 from alembic import op
-
 
 # revision identifiers, used by Alembic.
 revision = "9df8004ad9bb"

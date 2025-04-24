@@ -20,22 +20,27 @@ from faker import Faker
 from sqlalchemy.orm import Session
 
 from app import models
-from app.models import TestSuiteExecution
+from app.models import TestCollectionExecution, TestSuiteExecution
 from app.models.test_enums import TestStateEnum
+from app.tests.utils.test_collection_execution import (
+    create_random_test_collection_execution_dict,
+)
+from app.tests.utils.test_collection_metadata import (
+    create_random_test_collection_metadata,
+)
 from app.tests.utils.test_run_execution import create_random_test_run_execution
 from app.tests.utils.test_suite_metadata import create_random_test_suite_metadata
-from app.tests.utils.utils import random_lower_string, random_test_public_id
+from app.tests.utils.utils import random_test_public_id
 
 fake = Faker()
 
 
 def random_test_suite_execution_dict(
     public_id: Optional[str] = None,
-    collection_id: Optional[str] = None,
     state: Optional[TestStateEnum] = None,
     started_at: Optional[datetime] = None,
     completed_at: Optional[datetime] = None,
-    test_run_execution_id: Optional[int] = None,
+    test_collection_execution_id: Optional[int] = None,
     test_suite_metadata_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     output: Dict[str, Any] = {}
@@ -44,11 +49,6 @@ def random_test_suite_execution_dict(
     if public_id is None:
         public_id = random_test_public_id()
     output["public_id"] = public_id
-
-    # Collection id is not optional
-    if collection_id is None:
-        collection_id = random_lower_string()
-    output["collection_id"] = collection_id
 
     # State is optional, include if present
     if state is not None:
@@ -67,31 +67,38 @@ def random_test_suite_execution_dict(
         output["test_suite_metadata_id"] = test_suite_metadata_id
 
     # test_run_execution_id is optional, include if present
-    if test_run_execution_id is not None:
-        output["test_run_execution_id"] = test_run_execution_id
+    if test_collection_execution_id is not None:
+        output["test_collection_execution_id"] = test_collection_execution_id
 
     return output
 
 
 def create_random_test_suite_execution(db: Session) -> models.TestSuiteExecution:
-    # Generate random data for fields
+    # Generate random data for execution
+    test_run_execution = create_random_test_run_execution(db)
+    test_collection_execution_base_dict = create_random_test_collection_execution_dict()
     test_suite_execution_base_dict = random_test_suite_execution_dict()
 
-    # Create parent test_run_execution
-    test_run_execution = create_random_test_run_execution(db)
-
     # Create related metadata
+    test_collection_metadata = create_random_test_collection_metadata(db)
     test_suite_metadata = create_random_test_suite_metadata(db)
 
-    # Create Model
+    # Create Models
+    test_collection_execution = TestCollectionExecution(
+        **test_collection_execution_base_dict
+    )
     test_suite_execution = TestSuiteExecution(**test_suite_execution_base_dict)
     db.add(test_suite_execution)
 
     # Associate metadata
+    test_collection_execution.test_collection_metadata = test_collection_metadata
     test_suite_execution.test_suite_metadata = test_suite_metadata
 
     # Add to Parent run
-    test_run_execution.test_suite_executions.append(test_suite_execution)
+    test_run_execution.test_collection_executions.append(test_collection_execution)
+    test_run_execution.test_collection_executions[0].test_suite_executions.append(
+        test_suite_execution
+    )
     db.commit()
 
     return test_suite_execution

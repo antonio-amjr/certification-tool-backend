@@ -311,7 +311,7 @@ def __load_abort_tests_2_tests_1_suite(
 
 
 async def __run_abort_tests() -> None:
-    runner = TestRunner()
+    runner: TestRunner = TestRunner()
     run_task = asyncio.create_task(runner.run())
     await asyncio.sleep(1)
     runner.abort_testing()

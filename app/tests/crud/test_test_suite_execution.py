@@ -16,7 +16,10 @@
 from sqlalchemy.orm import Session
 
 from app import crud
-from app.models import TestSuiteExecution
+from app.models import TestCollectionExecution, TestSuiteExecution
+from app.tests.utils.test_collection_execution import (
+    create_random_test_collection_execution_dict,
+)
 from app.tests.utils.test_run_execution import create_random_test_run_execution
 from app.tests.utils.test_suite_execution import random_test_suite_execution_dict
 from app.tests.utils.test_suite_metadata import create_random_test_suite_metadata
@@ -27,16 +30,27 @@ def test_get_test_suite_execution(db: Session) -> None:
     test_suite_metadata = create_random_test_suite_metadata(db)
     test_run_execution = create_random_test_run_execution(db)
 
+    # Create new test_collection_execution object
+    test_collection_execution_dict = create_random_test_collection_execution_dict(
+        test_run_execution_id=test_run_execution.id
+    )
+    test_collection_execution = TestCollectionExecution(
+        **test_collection_execution_dict
+    )
+
     # Create build new test_suite_execution object
     test_suite_execution_dict = random_test_suite_execution_dict(
         public_id=test_suite_metadata.public_id,
         test_suite_metadata_id=test_suite_metadata.id,
-        test_run_execution_id=test_run_execution.id,
+        test_collection_execution_id=test_collection_execution.id,
     )
     test_suite_execution = TestSuiteExecution(**test_suite_execution_dict)
 
-    # Save create test_suite_execution in DB
-    test_run_execution.test_suite_executions.append(test_suite_execution)
+    # Save create Objects in DB
+    test_run_execution.test_collection_executions.append(test_collection_execution)
+    test_run_execution.test_collection_executions[0].test_suite_executions.append(
+        test_suite_execution
+    )
     db.commit()
 
     # Load stored test_suite_execution form DB
@@ -50,4 +64,11 @@ def test_get_test_suite_execution(db: Session) -> None:
 
     # assert relations
     assert stored_test_suite_execution.test_suite_metadata.id == test_suite_metadata.id
-    assert stored_test_suite_execution.test_run_execution.id == test_run_execution.id
+    assert (
+        stored_test_suite_execution.test_collection_execution.id
+        == test_collection_execution.id
+    )
+    assert (
+        stored_test_suite_execution.test_collection_execution.test_run_execution.id
+        == test_run_execution.id
+    )

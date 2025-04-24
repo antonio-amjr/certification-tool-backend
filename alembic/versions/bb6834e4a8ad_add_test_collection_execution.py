@@ -1,7 +1,7 @@
 """Add test collection execution
 
 Revision ID: bb6834e4a8ad
-Revises: e2c185af1226
+Revises: 0a251edfd975
 Create Date: 2024-08-07 20:35:26.786266
 
 """
@@ -13,7 +13,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "bb6834e4a8ad"
-down_revision = "e2c185af1226"
+down_revision = "0a251edfd975"
 branch_labels = None
 depends_on = None
 

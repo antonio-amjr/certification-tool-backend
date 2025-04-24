@@ -253,7 +253,7 @@ def test_create_test_run_execution_with_selected_tests_with_two_suites_succeeds(
     validate_json_response(
         response=response,
         expected_status_code=HTTPStatus.OK,
-        expected_keys=["id", "test_suite_executions"],
+        expected_keys=["id", "test_collection_executions"],
         expected_content={
             "title": title,
             "description": description,
@@ -262,7 +262,8 @@ def test_create_test_run_execution_with_selected_tests_with_two_suites_succeeds(
     )
 
     content = response.json()
-    suites = content.get("test_suite_executions")
+    collections = content.get("test_collection_executions")
+    suites = collections[0].get("test_suite_executions")
     returned_suites = [s["public_id"] for s in suites]
     selected_tests = json_data["selected_tests"]["sample_tests"].keys()
     for selected_suite in selected_tests:
@@ -359,7 +360,7 @@ def test_create_test_run_execution_cert_with_selected_tests_with_3_suites_succee
     validate_json_response(
         response=response,
         expected_status_code=HTTPStatus.OK,
-        expected_keys=["id", "test_suite_executions"],
+        expected_keys=["id", "test_collection_executions"],
         expected_content={
             "title": title,
             "description": description,
@@ -368,7 +369,8 @@ def test_create_test_run_execution_cert_with_selected_tests_with_3_suites_succee
     )
 
     content = response.json()
-    suites = content.get("test_suite_executions")
+    collections = content.get("test_collection_executions")
+    suites = collections[0].get("test_suite_executions")
     returned_suites = [s["public_id"] for s in suites]
     selected_tests = json_data["selected_tests"]["sample_tests"].keys()
     for selected_suite in selected_tests:
@@ -495,7 +497,7 @@ def test_repeat_existing_test_run_execution_with_two_suites_succeeds(
     validate_json_response(
         response=response,
         expected_status_code=HTTPStatus.OK,
-        expected_keys=["id", "title", "description", "test_suite_executions"],
+        expected_keys=["id", "title", "description", "test_collection_executions"],
         expected_content={
             "description": test_run_execution.description,
             "certification_mode": False,
@@ -506,7 +508,8 @@ def test_repeat_existing_test_run_execution_with_two_suites_succeeds(
     assert test_run_execution.id != content.get("id")
     assert base_title == remove_title_date(content.get("title"))
 
-    suites = content.get("test_suite_executions")
+    collections = content.get("test_collection_executions")
+    suites = collections[0].get("test_suite_executions")
     returned_suites = [s["public_id"] for s in suites]
     for selected_suite in selected_tests["sample_tests"].keys():
         assert selected_suite in returned_suites
@@ -534,7 +537,7 @@ def test_repeat_existing_test_run_execution_with_title_succeeds(
     validate_json_response(
         response=response,
         expected_status_code=HTTPStatus.OK,
-        expected_keys=["id", "title", "description", "test_suite_executions"],
+        expected_keys=["id", "title", "description", "test_collection_executions"],
         expected_content={"certification_mode": False},
     )
     content = response.json()
@@ -568,7 +571,7 @@ def test_repeat_existing_test_run_execution_certification_mode_with_two_suites_s
     validate_json_response(
         response=response,
         expected_status_code=HTTPStatus.OK,
-        expected_keys=["id", "title", "description", "test_suite_executions"],
+        expected_keys=["id", "title", "description", "test_collection_executions"],
         expected_content={
             "description": test_run_execution.description,
             "certification_mode": True,
@@ -579,7 +582,8 @@ def test_repeat_existing_test_run_execution_certification_mode_with_two_suites_s
     assert test_run_execution.id != content.get("id")
     assert base_title == remove_title_date(content.get("title"))
 
-    suites = content.get("test_suite_executions")
+    collections = content.get("test_collection_executions")
+    suites = collections[0].get("test_suite_executions")
     returned_suites = [s["public_id"] for s in suites]
     for selected_suite in selected_tests["sample_tests"].keys():
         assert selected_suite in returned_suites
@@ -607,7 +611,7 @@ def test_repeat_existing_test_run_execution_certification_mode_with_title_succee
     validate_json_response(
         response=response,
         expected_status_code=HTTPStatus.OK,
-        expected_keys=["id", "title", "description", "test_suite_executions"],
+        expected_keys=["id", "title", "description", "test_collection_executions"],
         expected_content={"certification_mode": True},
     )
     content = response.json()
@@ -771,7 +775,9 @@ def test_read_test_run_execution(client: TestClient, db: Session) -> None:
     )
 
     # Get variables for asserts
-    new_first_test_suite_execution = new_test_run_execution.test_suite_executions[0]
+    new_first_test_suite_execution = new_test_run_execution.test_collection_executions[
+        0
+    ].test_suite_executions[0]
     new_test_suite_metadata = new_first_test_suite_execution.test_suite_metadata
     new_first_test_case_execution = new_first_test_suite_execution.test_case_executions[
         0
@@ -793,12 +799,13 @@ def test_read_test_run_execution(client: TestClient, db: Session) -> None:
     assert content["state"] == new_test_run_execution.state
     assert content["started_at"] == new_test_run_execution.started_at
     assert content["completed_at"] == new_test_run_execution.completed_at
-    test_suite_executions = content["test_suite_executions"]
+    collections = content["test_collection_executions"]
+    test_suite_executions = collections[0]["test_suite_executions"]
 
     # Assert nested Test Suite Execution fields
     assert isinstance(test_suite_executions, list)
     assert len(test_suite_executions) == len(
-        new_test_run_execution.test_suite_executions
+        new_test_run_execution.test_collection_executions[0].test_suite_executions
     )
     first_test_suite_execution = test_suite_executions[0]
     assert first_test_suite_execution["id"] == new_first_test_suite_execution.id
@@ -955,7 +962,7 @@ async def test_test_run_execution_cancel(
 
     # We don't know how far the testing got, but the last test_suite and test_case
     # should be cancelled
-    last_test_suite = test_run.test_suites[-1]
+    last_test_suite = test_run.test_collections[0].test_suites[-1]
     assert last_test_suite is not None
     assert last_test_suite.state == TestStateEnum.CANCELLED
 

@@ -43,7 +43,8 @@ def get_test_suite_for_public_id(
     return next(
         (
             test_suite
-            for test_suite in test_run.test_suites
+            for test_collection in test_run.test_collections
+            for test_suite in test_collection.test_suites
             if test_suite.public_id() == public_id
         ),
         None,
@@ -55,7 +56,7 @@ def load_test_run_for_test_cases(db: Session, test_cases: TestSelection) -> Test
         db=db, selected_tests=test_cases
     )
     # Get TestRunner (singleton)
-    test_runner = TestRunner()
+    test_runner: TestRunner = TestRunner()
 
     # Ensure initial state is IDLE
     assert test_runner.state == TestRunnerState.IDLE
@@ -76,8 +77,12 @@ async def load_and_run_tool_unit_tests(
     run = runner.test_run
     assert run is not None
 
-    assert len(run.test_suites) == 1
-    suite = run.test_suites[0]
+    assert len(run.test_collections) == 1
+    collection = run.test_collections[0]
+    assert collection is not None
+
+    assert len(collection.test_suites) == 1
+    suite = collection.test_suites[0]
 
     assert len(suite.test_cases) == iterations
     case = suite.test_cases[0]

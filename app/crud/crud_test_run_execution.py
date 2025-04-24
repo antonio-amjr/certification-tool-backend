@@ -227,7 +227,7 @@ class CRUDTestRunExecution(
 
         # Sorting test_collections according to mandatory collections
         test_collections_sorted = self.__sort_selected_tests(test_collections)
-        test_run_execution.test_suite_executions.extend(test_collections_sorted)
+        test_run_execution.test_collection_executions.extend(test_collections_sorted)
 
         db.commit()
         db.refresh(test_run_execution)

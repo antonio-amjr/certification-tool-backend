@@ -171,12 +171,18 @@ async def test_test_log_handler_metadata_value(db: Session) -> None:
     log_handler = TestLogHandler(run)
     assert len(log_handler._TestLogHandler__pending_log_entries) == 0  # type: ignore
 
-    # Expected test suite and test case execution id's from the test run.
-    expected_test_suite_execution_index = run.test_suites[
+    # Expected execution indexes from the test run.
+    expected_test_collection_execution_index = run.test_collections[
         0
-    ].test_suite_execution.execution_index
+    ].test_collection_execution.execution_index
+    expected_test_suite_execution_index = (
+        run.test_collections[0].test_suites[0].test_suite_execution.execution_index
+    )
     expected_test_case_execution_index = (
-        run.test_suites[0].test_cases[0].test_case_execution.execution_index
+        run.test_collections[0]
+        .test_suites[0]
+        .test_cases[0]
+        .test_case_execution.execution_index
     )
 
     # TCTRExpectedPass test case has 3 test steps.
@@ -184,10 +190,16 @@ async def test_test_log_handler_metadata_value(db: Session) -> None:
     # test_steps[1] corresponds to test step 2 in TCTRExpectedPass test case.
 
     assert (
-        run.test_suites[0].test_cases[0].test_steps[1].test_step_execution is not None
+        run.test_collections[0]
+        .test_suites[0]
+        .test_cases[0]
+        .test_steps[1]
+        .test_step_execution
+        is not None
     )
     expected_test_step_execution_index = (
-        run.test_suites[0]
+        run.test_collections[0]
+        .test_suites[0]
         .test_cases[0]
         .test_steps[1]
         .test_step_execution.execution_index
@@ -200,6 +212,10 @@ async def test_test_log_handler_metadata_value(db: Session) -> None:
     )
 
     # verify all execution ID's match as expected from the test run v/s log entry.
+    assert (
+        expected_test_collection_execution_index
+        == actualLogEntry.test_collection_execution_index
+    )
     assert (
         expected_test_suite_execution_index == actualLogEntry.test_suite_execution_index
     )

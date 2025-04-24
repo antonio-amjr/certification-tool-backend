@@ -30,7 +30,6 @@ def random_test_suite_metadata_dict(
     description: Optional[str] = None,
     version: Optional[str] = None,
     source_hash: Optional[str] = None,
-    source_location: Optional[str] = None,
 ) -> Dict[str, Any]:
     if public_id is None:
         public_id = random_test_public_id()

@@ -189,8 +189,10 @@ def test_delete_test_run_execution_with_a_test_suite(db: Session) -> None:
         obj_in=test_run_execution_in,
         selected_tests={"sample_tests": {"SampleTestSuite1": {"TCSS1001": 1}}},
     )
-    assert len(test_run_execution.test_suite_executions) == 1
-    suite = test_run_execution.test_suite_executions[0]
+    assert (
+        len(test_run_execution.test_collection_executions[0].test_suite_executions) == 1
+    )
+    suite = test_run_execution.test_collection_executions[0].test_suite_executions[0]
 
     # Make sure DB session doesn't reuse models
     db.expunge(test_run_execution)
@@ -337,7 +339,9 @@ def test_create_test_run_execution_from_test_run_config(db: Session) -> None:
     assert not test_run_execution.certification_mode
 
     # Assert created test_suite_executions
-    test_suite_executions = test_run_execution.test_suite_executions
+    test_suite_executions = test_run_execution.test_collection_executions[
+        0
+    ].test_suite_executions
     assert len(test_suite_executions) > 0
 
     first_test_suite_execution = test_suite_executions[0]
@@ -377,7 +381,7 @@ def test_create_test_run_execution_certification_from_selected_tests_mandatory_s
                 "TCSS2001": 2,
             },
             "SampleTestSuite3Mandatory": {
-                "TCSS3001": 1,
+                first_mandatory_test_case_identifier: 1,
             },
         },
     }
@@ -404,7 +408,9 @@ def test_create_test_run_execution_certification_from_selected_tests_mandatory_s
     assert test_run_execution.certification_mode
 
     # Assert created test_suite_executions
-    test_suite_executions = test_run_execution.test_suite_executions
+    test_suite_executions = test_run_execution.test_collection_executions[
+        0
+    ].test_suite_executions
     assert len(test_suite_executions) > 0
 
     total_test_case_executions = 0
@@ -461,7 +467,9 @@ def test_create_test_run_execution_from_selected_tests(db: Session) -> None:
     assert not test_run_execution.certification_mode
 
     # Assert created test_suite_executions
-    test_suite_executions = test_run_execution.test_suite_executions
+    test_suite_executions = test_run_execution.test_collection_executions[
+        0
+    ].test_suite_executions
     assert len(test_suite_executions) > 0
 
     first_test_suite_execution = test_suite_executions[0]
@@ -536,7 +544,9 @@ def test_create_test_run_execution_certification_mode_from_test_run_config(
     assert test_run_execution.certification_mode
 
     # Assert created test_suite_executions
-    test_suite_executions = test_run_execution.test_suite_executions
+    test_suite_executions = test_run_execution.test_collection_executions[
+        0
+    ].test_suite_executions
     assert len(test_suite_executions) > 0
 
     first_test_suite_execution = test_suite_executions[0]
@@ -593,7 +603,9 @@ def test_create_test_run_execution_certification_mode_from_selected_tests(
     assert test_run_execution.certification_mode
 
     # Assert created test_suite_executions
-    test_suite_executions = test_run_execution.test_suite_executions
+    test_suite_executions = test_run_execution.test_collection_executions[
+        0
+    ].test_suite_executions
     assert len(test_suite_executions) > 0
 
     first_test_suite_execution = test_suite_executions[0]
