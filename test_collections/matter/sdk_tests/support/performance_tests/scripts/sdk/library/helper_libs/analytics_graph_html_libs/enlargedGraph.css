@@ -1,0 +1,176 @@
+/**
+ *
+ * Copyright (c) 2023 Project CHIP Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+.graph_container{
+  margin: auto;
+  width: 95%;
+  background-color: #ededed;
+  padding: 10px;
+  overflow: hidden;
+  border-radius: 10px;
+  padding-top: 10px;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+  min-height: 400px;
+}
+
+.tooltip {
+        position: absolute;
+        background-color: white;
+        border: 1px solid #ddd;
+        padding: 10px;
+        opacity: 0;
+    }
+.width .height{
+    margin:auto;
+
+}
+
+
+#container{
+  /* overflow: hidden; */
+  width:100%;
+  padding:40px;
+  display: grid;
+
+}
+
+label {
+  display: block; 
+  margin-bottom: 5px;
+}
+
+
+input{
+box-sizing: border-box;
+width: 30%;
+}
+button {
+  box-sizing: border-box;
+  width: 50%; /* Set button width to 100% of the parent width */
+  padding: 10px; /* Add padding as needed */
+  font-size: 16px; /* Set font size as needed */
+}
+
+.graph_styling{
+  text-align: center;
+  display: inline-block;
+  vertical-align: top;
+  margin: 10px; /* Set the margin for spacing between div elements */
+  border: 1px solid #000000; /* Add a border around each div */
+  box-sizing: border-box;
+  padding: 10px;
+  overflow: auto;
+  background-color: #ffffff;
+  box-shadow: 0 8px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+}
+.card {
+  display: inline-block;
+  margin-right: 10px; /* Adjust margin as needed */
+}
+.button-layout{
+  width: 90%;
+  background-color: rgb(255, 255, 255);
+  justify-content: center;
+  margin: auto;
+  padding: 0.5%;
+}
+.dropdown {
+  position: relative;
+  font-size: 14px;
+  color: #333;
+
+  .dropdown-list {
+    padding: 12px;
+    background: #fff;
+    position: absolute;
+    top: 30px;
+    left: 2px;
+    right: 2px;
+    box-shadow: 0 1px 2px 1px rgba(0, 0, 0, .15);
+    transform-origin: 50% 0;
+    transform: scale(1, 0);
+    transition: transform .15s ease-in-out .15s;
+    max-height: 66vh;
+    overflow-y: scroll;
+    width:70%;
+  }
+
+  .dropdown-option {
+    display: block;
+    padding: 8px 12px;
+    opacity: 0;
+    transition: opacity .15s ease-in-out;
+
+  }
+
+  .dropdown-label {
+    display: block;
+    height: 30px;
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 6px 12px;
+    line-height: 1;
+    cursor: pointer;
+    width:fit-content;
+
+    /*&:before {*/
+    /*  content: '▼';*/
+    /*  float: right;*/
+    /*}*/
+  }
+
+  &.on {
+   .dropdown-list {
+      transform: scale(1, 1);
+      transition-delay: 0s;
+
+      .dropdown-option {
+        opacity: 1;
+        transition-delay: .2s;
+      }
+    }
+
+    /*.dropdown-label:before {*/
+    /*  content: '▲';*/
+    /*}*/
+  }
+
+  [type="checkbox"] {
+    position: relative;
+    top: -1px;
+    margin-right: 4px;
+  }
+}
+.display_parent{
+  display: flex;
+  justify-content: center;
+}
+.display_child{
+  flex: 1;
+  width: fit-content;
+  margin: 10px;
+}
+.form-select{
+  width: auto;
+}
+#graph_select_label{
+  display: inline-block;
+  width: 150px; /* Adjust width as needed */
+}
+
+#graph_line_selector{
+  display: inline-block;
+}

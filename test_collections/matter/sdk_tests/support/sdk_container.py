@@ -60,13 +60,10 @@ LOCAL_RPC_PYTHON_TESTING_PATH = Path(
 DOCKER_RPC_PYTHON_TESTING_PATH = "/root/python_testing/scripts/sdk/matter_testing_infrastructure/chip/testing/test_harness_client.py"  # noqa
 
 # Stress/Stability Test Script (For now it is injected on SDK container.)
-LOCAL_STRESS_TEST_SCRIPT_PATH = Path(
+LOCAL_STRESS_TEST_SCRIPTS_PATH = Path(
     LOCAL_TEST_COLLECTIONS_PATH + "/sdk_tests/support/performance_tests/scripts/sdk/"
-    "TC_COMMISSIONING_1_0.py"
 )
-DOCKER_STRESS_TEST_SCRIPT_PATH = (
-    "/root/python_testing/scripts/sdk/TC_COMMISSIONING_1_0.py"
-)
+DOCKER_STRESS_TEST_SCRIPTS_PATH = "/root/python_testing/scripts/sdk/"
 
 LOCAL_STRESS_TEST_ACCESSORY_MANAGER_SCRIPT_PATH = Path(
     LOCAL_TEST_COLLECTIONS_PATH + "/sdk_tests/support/performance_tests/scripts/sdk/"
@@ -135,8 +132,8 @@ class SDKContainer(metaclass=Singleton):
                 "bind": DOCKER_RPC_PYTHON_TESTING_PATH,
                 "mode": "rw",
             },
-            LOCAL_STRESS_TEST_SCRIPT_PATH: {
-                "bind": DOCKER_STRESS_TEST_SCRIPT_PATH,
+            LOCAL_STRESS_TEST_SCRIPTS_PATH: {
+                "bind": DOCKER_STRESS_TEST_SCRIPTS_PATH,
                 "mode": "rw",
             },
             LOCAL_STRESS_TEST_ACCESSORY_MANAGER_SCRIPT_PATH: {

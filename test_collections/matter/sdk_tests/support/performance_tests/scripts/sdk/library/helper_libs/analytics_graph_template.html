@@ -1,0 +1,68 @@
+<!--/**
+ *
+ * Copyright (c) 2025 Project CHIP Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>Enlarged Graph</title>
+  <script src="analytics_graph_html_libs/jquery-3.7.1.min.js"></script>
+  <script src="analytics_graph_html_libs/d3.v7.min.js"></script>
+  <script defer="defer" type="text/javascript" src="analytics_graph_html_libs/enlargedGraph.js"></script>
+  <link rel="stylesheet" href="analytics_graph_html_libs/bootstrap.min.css">
+  <script defer="defer" src="analytics_graph_html_libs/bootstrap.bundle.min.js"></script>
+  <link rel="stylesheet" href="analytics_graph_html_libs/enlargedGraph.css" id="graph-css">
+  <link rel="stylesheet" href="analytics_graph_html_libs/font-awesome.min.css">
+  <script defer id="data" type="application/json"> GraphData </script>
+</head>
+
+<body>
+  <div class="graph_container">
+    <div class="display_parent">
+      <div class="display_child">
+        <div class="dropdown" data-control="checkbox-dropdown">
+          <label class="dropdown-label">
+              Display All Graphs
+          </label>
+          <div class="dropdown-list" id="graph_option_selector_container">
+                <label class="dropdown-option">
+                  <input type="checkbox" id="DisplayAll" onchange="removeAllGraphs()" value="checked" /> Display All Graphs
+                </label>
+          </div>
+        </div>
+      </div>
+      <div class="display_child">
+        <p id="zoomLevel">Graph Zoom Level: 1 </p>
+      </div>
+      <div class="display_child">
+        <p id="zoom-refactor-p">Zoom Re-Factor: <span id="zoom-refactor-edit" value="100">100</span> <span
+            id="zoom-edit-button" class="fa fa-edit"></span> </p>
+      </div>
+      <div class="display_child">
+        <label for="graph_line_selector" id="graph_select_label">Graph Selected:  </label>
+            <select id="graph_line_selector" class="form-select" aria-label="Default select example">
+              <option selected value="step_graph">Step Graph</option>
+              <option  value="curved_line"> Curved Line Graph </option>
+            </select>
+      </div>
+    </div>
+    <div id="container">
+    </div>
+  </div>
+</body>
+
+</html>

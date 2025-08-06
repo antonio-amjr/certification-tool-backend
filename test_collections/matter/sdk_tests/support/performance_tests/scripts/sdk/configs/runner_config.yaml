@@ -1,0 +1,38 @@
+# Configuration for the test case runner, including common arguments shared across scripts and 
+# specific test scripts to be executed with their unique arguments if needed.
+Testcase_runner_config:
+
+  # Notes for this section:
+    # - Each script in `test_scripts` is executed sequentially.
+    # - Paths specified in script_path need to be updated with real directory locations before 
+    #   running the configuration.
+    # - If `args` is specified within a script, it can override any parameter from `common_args` 
+    #   (e.g., changing `--commissioning-method` to 'ble-wifi' for the second script).
+    # - Paths specified in arguments `reliability-tests-arg` may needs to be updated
+    #   with different configuration files based on the requirements.
+    # - Using `common_args` ensures consistency across all test cases, while `args` within specific scripts 
+    #   provides flexibility for individual script customization.
+    # - `clear_temp_files` is an optional boolean; if True, it clears temporary files after executing that script.
+    #   If False or omitted, temporary files will be retained after execution.
+
+  # Common arguments that apply to all test scripts, unless specifically overridden in individual scripts.
+  # These arguments set up key test parameters such as discriminator, passcode, storage path, 
+  # timeout duration, commissioning method, and paths for logs and PAA trust store.
+  common_args: --discriminator 3790 --passcode 20202021 --storage-path admin_storage.json --timeout 900000000 --commissioning-method on-network --logs-path <path/to/store/execution/logs> --reliability-tests-arg <path/to/configFile.yaml> --trace-to json:log --paa-trust-store-path <path-to-connectedhomeip>/connectedhomeip/credentials/development/paa-root-certs/
+
+  
+  # List of test scripts with paths and optional script-specific arguments.
+  # Each entry represents a script to execute as part of the test run.
+  scripts:
+    # This is the example for the script that run with the common_args specified above,
+    # as no additional or overriding arguments are provided.
+    - script_path: path/to/reliability_script/TC_Pair.py
+      clear_temp_files: true
+
+
+    # This is the example for the script that uses both the common_args and specific arguments 
+    # listed under `args` , This allows setting script-specific parameters that can override or 
+    # add to those in common_args.
+    - script_path: path/to/reliability_script/TC_Pair.py
+      args: --commissioning-method ble-wifi 
+      clear_temp_files: true

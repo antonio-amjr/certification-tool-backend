@@ -80,7 +80,18 @@ def __test_classes(module: ast.Module) -> list[ast.ClassDef]:
         for c in module.body
         if isinstance(c, ast.ClassDef)
         and any(
-            b for b in c.bases if isinstance(b, ast.Name) and b.id == "MatterBaseTest"
+            # TODO: Verify the better approach for the required Stress Test classes
+            # Original code below:
+            # b for b in c.bases if isinstance(b, ast.Name) and b.id == "MatterBaseTest"
+            # The following is the POC for Matter-QA Stress Tests inclusion
+            b
+            for b in c.bases
+            if isinstance(b, ast.Name)
+            and (
+                b.id == "MatterBaseTest"
+                or b.id == "MatterQABaseTestCaseClass"
+                or b.id == "PairingFlowFunctions"
+            )
         )
     ]
 

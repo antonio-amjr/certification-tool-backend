@@ -1,0 +1,148 @@
+## Sample Config file
+general_configs:
+  platform_execution: "nordic" # Use 'rpi' option for using raspberrypi as DUT, for any other option used like 'nordic' or 'CustomDUT' same name will appear in log viewer UI and 'deviceModules' option from config will be read/used
+  number_of_iterations: 3
+  sleep_duration_between_iterations: 5  # Accept the int value for the sleep duration between the iterations if this parameter is missing a random value between 1- 5.
+  delay_between_stress_test_operations: 2 # Provide delay between operations so that DUT can be put into a stable state
+
+  analytics_parameters:
+    current_heap_used :
+      attribute: SoftwareDiagnostics.Attributes.CurrentHeapUsed
+      end_point: 0
+    reboot_count :
+      attribute: GeneralDiagnostics.Attributes.RebootCount
+      end_point: 0
+
+  test_event_trigger_config:
+    use_test_event_trigger_factory_reset: False # Accept only boolean values, when set to True the script will trigger test events for factory reset on DUT.
+    factory_reset_trigger_id: 0xFFFF000000000001 # Factory reset trigger ID, used to trigger factory reset on DUT.
+    enable_key: 00112233445566778899aabbccddeeff # enable_key is used to perform test event trigger 
+
+  logging_config:
+    capture_tcpdump_on_controller: False # Accept only boolean values, when set to True the script will capture tcpdump on controller side.
+    copy_var_log: False
+    var_log_filenames: ["avahi-daemon.log"]
+
+  mongodb_server_config:
+    enable_mongodb_storage: False  # Accept only boolean values, when set to True the script will store results on MongoDB server.
+    continue_on_server_connection_fail: True  # Accept only boolean values, when set to True the script will store results on MongoDB server.
+    server_url: localhost:27017
+    username: ''
+    password: ''
+
+  diagnostic_logs_config:
+    enable_diagnostic_log_capture: False  # Start to capture diagnostic logs if the key is set to true
+    bdx_transfer_timeout_seconds: 5 #Timeout duration (in seconds) for BDX transfer operations.
+
+otbr_device_config:
+  capture_tcpdump_on_otbr: False # Accept only boolean values, when set to True the script will capture tcpdump on OTBR side.
+  otbr_agent: "otbr_on_ssh"
+
+  otbr_on_ssh:
+    module: matter_qa.library.otbr_device.otbr_on_ssh
+    otbr_device_hostname: "192.168.1.107"
+    otbr_device_username: "ubuntu"
+    otbr_device_password: "raspberrypi"
+    otbr_device_sudo_password: "raspberrypi"
+
+dut_config:
+  rpi: # These parameters are used to take ssh session to a remote host and start DUT application on a raspberrypi
+    module: matter_qa.library.platform.raspberrypi # Python file which will inherit the BaseDUTNode class and define the behaviour of the DUT Working
+    rpi_hostname: "192.168.1.107"
+    delay_after_factory_reset: 5
+    do_factory_reset_every_iteration: True
+    capture_bluez: False
+    capture_hcidump: False
+    capture_tcpdump: False
+    capture_dbus: False
+    capture_wpasupplicant: False
+    rpi_username: "ubuntu"
+    rpi_password: "raspberrypi"
+    rpi_sudo_password: "raspberrypi"
+    download_var_logs: False
+    var_log_filenames: ["avahi-daemon.log"]
+    app_config: # These parameters are used to start the DUT application os user's choice, provide full app path and the arguments
+      matter_app: "/home/ubuntu/apps/chip-all-clusters-app"
+      discriminator: 3000
+      passcode: 20202021
+      trace_decode: 1
+      crash_log: /home/ubuntu/apps/crash_log.txt
+      end_user_support_log: /home/ubuntu/apps/end_user_support_log.txt
+      network_diagnostics_log: /home/ubuntu/apps/nw_log.txt
+
+  tizen: # These parameters are used to take ssh session to a remote host and start DUT application on a raspberrypi
+    module: matter_qa.library.platform.tizen # Python file which will inherit the BaseDUTNode class and define the behaviour of the DUT Working
+    connector:
+      # Select which method to use for connecting to a Tizen target
+      module: matter_qa.library.platform.tizen.sdb  # matter_qa.library.platform.tizen.sdb || matter_qa.library.platform.tizen.ssh
+
+      # Parameters for 'matter_qa.library.platform.tizen.ssh'
+      ssh:
+        hostname: 192.168.1.183
+        username: root
+        password: tizen
+        sudo_password: tizen
+
+      # Parameters for 'matter_qa.library.platform.tizen.sdb'
+      sdb:
+        # serial_no: 12417471  # Optional
+        wait_for_device: False
+
+    delay_after_factory_reset: 5
+    do_factory_reset_every_iteration: True
+    capture_bluez: False
+    capture_hcidump: False
+    capture_tcpdump: False
+    capture_dbus: False
+    capture_wpasupplicant: False
+    download_var_logs: False
+    var_log_filenames: ["avahi-daemon.log"]
+    factory_reset:
+      clear_connman_state: True
+      # Bluez state clear commands break GATT registration
+      clear_bluetoothd_state: False
+
+    app_package_id: "org.tizen.matter.example.lighting"
+    app_config: # These parameters are used to start the DUT application
+      wifi: 'true'
+      discriminator: '3001'
+
+  nordic:
+    module: matter_qa.library.platform.nordic # Python file which will inherit the BaseDUTNode class and define the behaviour of the DUT Working
+    do_factory_reset_every_iteration: False
+    serial_port: "/dev/tty.usbmodem0006835144561"
+    serial_baudrate: 115200
+    serial_timeout: 60
+    factoryreset_command: "matter device factoryreset\n"
+    app_config: # These parameters are used to start the DUT application os user's choice, provide full app path and the arguments
+      matter_app: ""
+      discriminator: 3840
+      passcode: 20202021
+    number_of_iterations: 5
+
+  silabs:
+    module: matter_qa.library.platform.silabs
+    telnet_remote: "172.16.0.87"
+    telnet_port: 4902
+    telnet_timeout: 15
+
+  esp32:
+    module: matter_qa.library.platform.esp32
+    serial_port: "/dev/ttyUSB1"
+    serial_baudrate: 115200
+    serial_timeout: 60
+    command: "matter device factoryreset\n"
+
+  production_matter_device:
+    module: matter_qa.library.platform.production_matter_device
+    do_factory_reset_every_iteration: True
+  
+test_case_config:
+  TC_Pair:
+    retry_count: 3
+  TC_Multiadmin:
+    open_commissioning_window_timeout: 300
+  TC_Darwin_Pair:
+    manual_code: 24970112330 # Manual code to estabish a pase session
+  TC_Android_Pair:
+    manual_code: 24970112330 # Manual code to estabish a pase session
