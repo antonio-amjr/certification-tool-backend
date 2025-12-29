@@ -64,6 +64,7 @@ class CRUDTestRunExecution(
         order_by: Optional[str] = None,
         skip: Optional[int] = 0,
         limit: Optional[int] = 100,
+        sort_order: str = "asc",
     ) -> Sequence[TestRunExecution]:
         query = self.select()
 
@@ -84,12 +85,17 @@ class CRUDTestRunExecution(
                 )
             )
 
-        if order_by is None:
-            query = query.order_by(self.model.id)
+        column = self.model.id if order_by is None else getattr(self.model, order_by)
+        if sort_order == "desc":
+            query = query.order_by(column.desc())
         else:
-            query = query.order_by(order_by)
+            query = query.order_by(column.asc())
 
-        query = query.offset(skip).limit(limit)
+        query = query.offset(skip)
+
+        # If limit is 0, return all results without limit
+        if limit != 0:
+            query = query.limit(limit)
 
         return db.scalars(query).all()
 
@@ -103,6 +109,7 @@ class CRUDTestRunExecution(
         order_by: Optional[str] = None,
         skip: Optional[int] = 0,
         limit: Optional[int] = 100,
+        sort_order: str = "asc",
     ) -> List[TestRunExecutionWithStats]:
         results = self.get_multi(
             db=db,
@@ -110,6 +117,7 @@ class CRUDTestRunExecution(
             archived=archived,
             search_query=search_query,
             order_by=order_by,
+            sort_order=sort_order,
             skip=skip,
             limit=limit,
         )
