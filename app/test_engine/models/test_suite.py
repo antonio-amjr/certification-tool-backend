@@ -58,6 +58,14 @@ class TestSuite(TestObservable):
 
     @property
     def config(self) -> dict:
+        """Get configuration for test suite.
+
+        Returns execution_config if available (temporary override from CLI),
+        otherwise returns project.config (persistent configuration).
+        """
+        test_run_execution = self.test_suite_execution.test_run_execution
+        if test_run_execution.execution_config is not None:
+            return test_run_execution.execution_config
         return self.project.config
 
     @property
@@ -76,7 +84,7 @@ class TestSuite(TestObservable):
 
     def __compute_state(self) -> TestStateEnum:
         """
-        State is computed based test_suite errors and on on test case states.
+        State is computed based on test_suite errors and test case states.
         """
         if self.errors is not None and len(self.errors) > 0:
             return TestStateEnum.ERROR
