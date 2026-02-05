@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Project CHIP Authors
+# Copyright (c) 2023-2026 Project CHIP Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -91,9 +91,18 @@ async def generate_command_arguments(
     elif (
         pairing_mode == DutPairingModeEnum.BLE_THREAD
         or pairing_mode == DutPairingModeEnum.NFC_THREAD
+        or pairing_mode == DutPairingModeEnum.THREAD
     ):
         dataset_hex = await __thread_dataset_hex(config.network.thread)
         arguments.append(f"--thread-dataset-hex {dataset_hex}")
+
+        # Add Border Agent parameters for THREAD
+        if pairing_mode == DutPairingModeEnum.THREAD:
+            thread_config = config.network.thread
+            if thread_config.ba_host:
+                arguments.append(f"--thread-ba-host {thread_config.ba_host}")
+            if thread_config.ba_port:
+                arguments.append(f"--thread-ba-port {thread_config.ba_port}")
 
     # Retrieve arguments from test_parameters
     if test_parameters:
