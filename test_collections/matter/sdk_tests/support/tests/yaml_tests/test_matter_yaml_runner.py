@@ -378,7 +378,16 @@ async def test_pairing_on_network_command_params() -> None:
 
 
 @pytest.mark.asyncio
-async def test_pairing_ble_wifi_command_params() -> None:
+@pytest.mark.parametrize(
+    "pairing_fn_name, pairing_cmd",
+    [
+        ("pairing_ble_wifi", "ble-wifi"),
+        ("pairing_nfc_wifi", "nfc-wifi"),
+    ],
+)
+async def test_pairing_wifi_command_params(
+    pairing_fn_name: str, pairing_cmd: str
+) -> None:
     original_trace_setting_value = matter_settings.CHIP_TOOL_TRACE
     if original_trace_setting_value is True:
         matter_settings.CHIP_TOOL_TRACE = False
@@ -396,7 +405,8 @@ async def test_pairing_ble_wifi_command_params() -> None:
         attribute="send_websocket_command",
         return_value='{"results": []}',
     ) as mock_send_websocket_command:
-        result = await runner.pairing_ble_wifi(
+        pairing_fn = getattr(runner, pairing_fn_name)
+        result = await pairing_fn(
             ssid=ssid,
             password=password,
             setup_code=setup_code,
@@ -406,7 +416,7 @@ async def test_pairing_ble_wifi_command_params() -> None:
     expected_params = (
         f"{hex(chip_server.node_id)} {ssid} {password} {setup_code} {discriminator}"
     )
-    expected_command = f"pairing ble-wifi {expected_params}"
+    expected_command = f"pairing {pairing_cmd} {expected_params}"
 
     assert result is True
     mock_send_websocket_command.assert_awaited_once_with(expected_command)

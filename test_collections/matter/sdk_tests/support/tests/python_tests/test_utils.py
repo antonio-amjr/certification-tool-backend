@@ -98,8 +98,18 @@ async def test_generate_command_arguments_on_network() -> None:
     ] == arguments
 
 
+@pytest.mark.parametrize(
+    "pairing_mode, commissioning_method",
+    [
+        (DutPairingModeEnum.BLE_WIFI, "ble-wifi"),
+        (DutPairingModeEnum.NFC_WIFI, "nfc-wifi"),
+    ],
+)
 @pytest.mark.asyncio
-async def test_generate_command_arguments_ble_wifi() -> None:
+async def test_generate_command_arguments_wifi_pairing_mode(
+    pairing_mode: DutPairingModeEnum,
+    commissioning_method: str,
+) -> None:
     # Mock config
     mock_config = default_environment_config.copy(deep=True)  # type: ignore
 
@@ -111,7 +121,7 @@ async def test_generate_command_arguments_ble_wifi() -> None:
     mock_dut_config = DutConfig(
         discriminator="147",
         setup_code="357",
-        pairing_mode=DutPairingModeEnum.BLE_WIFI,
+        pairing_mode=pairing_mode,
     )
 
     mock_config.dut_config = mock_dut_config
@@ -122,7 +132,7 @@ async def test_generate_command_arguments_ble_wifi() -> None:
 
     assert [
         "--trace-to json:log",
-        "--commissioning-method ble-wifi",
+        f"--commissioning-method {commissioning_method}",
         "--wifi-ssid testharness",
         "--wifi-passphrase wifi-password",
         "--discriminator 147",
