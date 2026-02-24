@@ -149,10 +149,16 @@ def base_test_classes(module: ast.Module) -> list[ast.ClassDef]:
             # Include imports from support_modules, matter_testing,
             # or any module ending with Base/Test
             if node.module and (
-                "support_modules" in node.module
-                or "matter_testing" in node.module
+                any(
+                    s in node.module
+                    for s in [
+                        "support_modules",
+                        "matter_testing",
+                        "matter.testing.basic_composition",
+                        "test_testing",
+                    ]
+                )
                 or node.module.endswith("TestBase")
-                or "TestBase" in node.module
             ):
                 for alias in node.names:
                     imported_base_classes.add(alias.name)
