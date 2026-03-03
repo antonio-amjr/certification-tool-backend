@@ -35,6 +35,7 @@ from test_collections.matter.sdk_tests.support.sdk_container import SDKContainer
 # Make these constants synced with "test_harness_client.py"
 GET_TEST_INFO_ARGUMENT = "--get-test-info"
 TEST_INFO_JSON_FILENAME = "test_info.json"
+MATTER_BASE_TEST_CLASS_NAME = "MatterBaseTest"
 
 # Pattern to match TC_*.py format
 # TC_ followed by at least one character/digit, then .py
@@ -131,76 +132,158 @@ def load_include_list() -> set[str]:
     return __load_file_list(PYTHON_TESTS_INCLUDE_FILE)
 
 
-def base_test_classes(module: ast.Module) -> list[ast.ClassDef]:
-    """Find classes that inherit from MatterBaseTest.
+def _is_matter_base_test_class(
+    class_name: str,
+    module: ast.Module,
+    search_dir: Optional[Path],
+    _visiting: Optional[set[tuple]] = None,
+    _module_cache: Optional[dict] = None,
+) -> bool:
+    """Recursively check if a class name in a parsed module ultimately inherits
+    from MatterBaseTest, following local file imports as needed.
 
     Args:
-        module (ast.Module): Python module.
+        class_name: Name of the class to check.
+        module: Parsed AST of the file where class_name is defined.
+        search_dir: Directory to search for locally-imported modules.
+        _visiting: Set of `(id(module), class_name)` or `(abs_path, class_name)`
+            tuples already being resolved (cycle guard). Same-module checks use
+            the object id; cross-file checks use the absolute file path so that
+            separately parsed copies of the same file are correctly identified.
+        _module_cache: Cache of already-parsed AST modules keyed by absolute
+            file path, to avoid redundant disk reads.
 
     Returns:
-        list[ast.ClassDef]: List of classes from the given module that inherit from
-        MatterBaseTest.
+        bool: True if the class transitively inherits from MatterBaseTest.
     """
+    if _visiting is None:
+        _visiting = set()
+    if _module_cache is None:
+        _module_cache = {}
 
-    # Get all imported classes that could be base test classes
-    imported_base_classes = set()
-    for node in module.body:
-        if isinstance(node, ast.ImportFrom):
-            # Include imports from support_modules, matter_testing,
-            # or any module ending with Base/Test
-            if node.module and (
-                any(
-                    s in node.module
-                    for s in [
-                        "support_modules",
-                        "matter_testing",
-                        "matter.testing.basic_composition",
-                        "test_testing",
-                    ]
-                )
-                or node.module.endswith("TestBase")
-            ):
-                for alias in node.names:
-                    imported_base_classes.add(alias.name)
-
-    def inherits_from_matter_base_test(
-        class_def: ast.ClassDef, visited: Optional[set] = None
-    ) -> bool:
-        if visited is None:
-            visited = set()
-
-        if class_def.name in visited:
-            return False
-        visited.add(class_def.name)
-
-        # Check direct inheritance from MatterBaseTest or imported base classes
-        for base in class_def.bases:
-            if isinstance(base, ast.Name):
-                if base.id == "MatterBaseTest" or base.id in imported_base_classes:
-                    return True
-
-        # Check inheritance from parent classes in the same module
-        for base in class_def.bases:
-            if isinstance(base, ast.Name):
-                parent_class = next(
-                    (
-                        c
-                        for c in module.body
-                        if isinstance(c, ast.ClassDef) and c.name == base.id
-                    ),
-                    None,
-                )
-                if parent_class and inherits_from_matter_base_test(
-                    parent_class, visited.copy()
-                ):
-                    return True
-
+    # Find the class definition in this module
+    class_def = next(
+        (
+            node
+            for node in module.body
+            if isinstance(node, ast.ClassDef) and node.name == class_name
+        ),
+        None,
+    )
+    if class_def is None:
         return False
 
+    key = (id(module), class_name)
+    if key in _visiting:
+        return False
+    _visiting.add(key)
+
+    for base in class_def.bases:
+        if not isinstance(base, ast.Name):
+            continue
+        base_name = base.id
+
+        # Direct hit
+        if base_name == MATTER_BASE_TEST_CLASS_NAME:
+            return True
+
+        # Check if base_name is defined in the same module (local parent class)
+        if _is_matter_base_test_class(
+            base_name, module, search_dir, _visiting, _module_cache
+        ):
+            return True
+
+        # Try to resolve base_name via imports in this module
+        for node in module.body:
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            imported_names = [alias.asname or alias.name for alias in node.names]
+            if base_name not in imported_names:
+                continue
+
+            if not node.module:
+                continue
+
+            # Try to load a local file. Module dots are converted to path separators
+            # so both flat imports (TC_TLSCERT_Base) and package imports
+            # (support_modules.idm_support) resolve to the correct sibling file.
+            if search_dir:
+                candidate = search_dir / f"{node.module.replace('.', '/')}.py"
+                if candidate.exists():
+                    try:
+                        abs_path = str(candidate.resolve())
+                        if abs_path not in _module_cache:
+                            with open(candidate, "r") as f:
+                                _module_cache[abs_path] = ast.parse(f.read())
+                        imported_module = _module_cache[abs_path]
+
+                        # Use the absolute path as the cycle-guard key so that
+                        # re-parsed copies of the same file are treated as
+                        # identical, preventing infinite recursion on cross-file
+                        # circular imports.
+                        file_key = (abs_path, class_name)
+                        if file_key in _visiting:
+                            continue
+                        _visiting.add(file_key)
+
+                        # The actual class name in the imported file may differ
+                        # (e.g. `from TC_TLSCERT_Base import TC_TLSCERT_Base`)
+                        actual_name = next(
+                            (
+                                alias.name
+                                for alias in node.names
+                                if (alias.asname or alias.name) == base_name
+                            ),
+                            base_name,
+                        )
+                        if _is_matter_base_test_class(
+                            actual_name,
+                            imported_module,
+                            search_dir,
+                            _visiting,
+                            _module_cache,
+                        ):
+                            return True
+                        continue
+
+                    except SyntaxError:
+                        logger.warning(f"Skipping {candidate} due to syntax error")
+
+            # Fallback for installed packages whose source is not available as a
+            # local file (e.g. matter.testing.* installed as a wheel).
+            # BasicCompositionTests and similar classes from matter.testing.* are
+            # known to inherit from MatterBaseTest, so we trust those imports.
+            if "matter.testing" in node.module:
+                return True
+
+    return False
+
+
+def base_test_classes(
+    module: ast.Module, search_dir: Optional[Path] = None
+) -> list[ast.ClassDef]:
+    """Find classes that inherit from MatterBaseTest, following local imports
+    transitively so that intermediate base classes (e.g. TC_TLSCERT_Base) are
+    resolved without needing hardcoded module-name patterns.
+
+    Args:
+        module (ast.Module): Parsed Python module.
+        search_dir (Optional[Path]): Directory containing the file's siblings,
+            used to resolve local imports.  When None only same-file inheritance
+            and the legacy pattern-based fallback are used.
+
+    Returns:
+        list[ast.ClassDef]: Classes in the module that ultimately inherit from
+        MatterBaseTest.
+    """
+    module_cache: dict = {}
     return [
         c
         for c in module.body
-        if isinstance(c, ast.ClassDef) and inherits_from_matter_base_test(c)
+        if isinstance(c, ast.ClassDef)
+        and _is_matter_base_test_class(
+            c.name, module, search_dir, _module_cache=module_cache
+        )
     ]
 
 
@@ -240,7 +323,9 @@ def get_command_list(test_folder: SDKTestFolder) -> list:
             )
             continue
 
-        test_classes = base_test_classes(parsed_python_file)
+        test_classes = base_test_classes(
+            parsed_python_file, search_dir=python_test_file.parent
+        )
         for test_class in test_classes:
             # Add file path and class name
             script_command = [
