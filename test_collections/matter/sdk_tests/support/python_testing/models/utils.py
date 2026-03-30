@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Generator, cast
 
@@ -56,6 +57,13 @@ NFC_PAIRING_MODES = {
     DutPairingModeEnum.NFC_WIFI.value,
     DutPairingModeEnum.NFC_THREAD.value,
 }
+
+# Typed SDK argument flags that accept NAME:VALUE pairs and require special
+# handling to survive the container shell without mangling.
+_SPLIT_ARGS = {"json-arg", "string-arg", "int-arg", "float-arg", "bool-arg", "hex-arg"}
+
+# Characters that trigger shell brace expansion or word splitting.
+_SHELL_SPECIAL = set("{[}\"'")
 
 
 async def generate_command_arguments(
@@ -123,11 +131,36 @@ async def generate_command_arguments(
         arguments.append(f"--discriminator {dut_config.discriminator}")
         arguments.append(f"--passcode {dut_config.setup_code}")
 
-    # Retrieve arguments from test_parameters
+    # Retrieve arguments from test_parameters.
+    # Typed SDK args (--json-arg, --string-arg, etc.) may contain special
+    # characters such as braces and quotes that the container shell would
+    # mangle if embedded in a single string token.
+    # Emit the flag and each NAME:VALUE pair as separate list entries.
+    # Single-quote pairs that contain shell-special characters so the
+    # container shell does not perform brace expansion or word splitting.
+    # json-arg is always a single NAME:JSON token — never split on spaces,
+    # as the JSON value itself may contain spaces.
+    # Other typed args (int-arg, string-arg, etc.) use plain NAME:VALUE pairs
+    # with no spaces, so splitting on spaces is safe for them.
     if test_parameters:
         for name, value in test_parameters.items():
-            arg_value = str(value) if value is not None else ""
-            arguments.append(f"--{name} {arg_value}")
+            if isinstance(value, (dict, list)):
+                arg_value = json.dumps(value, separators=(",", ":"))
+            elif value is not None:
+                arg_value = str(value)
+            else:
+                arg_value = ""
+            if name in _SPLIT_ARGS:
+                arguments.append(f"--{name}")
+                pairs = [arg_value] if name == "json-arg" else arg_value.split(" ")
+                for pair in pairs:
+                    if pair:
+                        if any(c in pair for c in _SHELL_SPECIAL):
+                            arguments.append(f"'{pair}'")
+                        else:
+                            arguments.append(pair)
+            else:
+                arguments.append(f"--{name} {arg_value}")
 
     return arguments
 
