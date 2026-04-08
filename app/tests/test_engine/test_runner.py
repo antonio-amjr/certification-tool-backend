@@ -18,7 +18,7 @@ import asyncio
 import pytest
 from sqlalchemy.orm import Session
 
-from app import crud
+from app import crud, schemas
 from app.models import TestStateEnum
 from app.schemas.test_run_execution import TestRunExecutionCreate
 from app.test_engine.test_runner import (
@@ -104,14 +104,16 @@ async def test_test_runner(db: Session) -> None:
 
 @pytest.mark.asyncio
 async def test_test_runner_abort_in_memory(db: Session) -> None:
-    selected_tests = {
-        "tool_unit_tests": {
-            "TestSuiteAsync": {
-                "TCTRNeverEnding": 1,
-                "TCTRInstantPass": 1,
-            },
+    selected_tests = schemas.SelectedTests(
+        __root__={
+            "tool_unit_tests": {
+                "TestSuiteAsync": {
+                    "TCTRNeverEnding": 1,
+                    "TCTRInstantPass": 1,
+                },
+            }
         }
-    }
+    )
 
     test_run_execution = create_random_test_run_execution(
         db=db, selected_tests=selected_tests
@@ -174,14 +176,16 @@ async def test_test_runner_abort_in_memory(db: Session) -> None:
 
 @pytest.mark.asyncio
 async def test_test_runner_abort_db_sync(db: Session) -> None:
-    selected_tests = {
-        "tool_unit_tests": {
-            "TestSuiteAsync": {
-                "TCTRNeverEnding": 1,
-                "TCTRInstantPass": 1,
-            },
+    selected_tests = schemas.SelectedTests(
+        __root__={
+            "tool_unit_tests": {
+                "TestSuiteAsync": {
+                    "TCTRNeverEnding": 1,
+                    "TCTRInstantPass": 1,
+                },
+            }
         }
-    }
+    )
 
     test_run_execution = create_random_test_run_execution(
         db=db, selected_tests=selected_tests
@@ -324,17 +328,19 @@ async def test_runner_not_all_test_cases_not_applicable(db: Session) -> None:
         db (Session): Database fixture for creating test models.
     """
 
-    test_cases = {
-        "tool_unit_tests": {
-            TestSuiteExpected.public_id(): {
-                TCTRExpectedCaseNotApplicable.public_id(): 1,
-                TCTRExpectedPass.public_id(): 1,
-            },
-            TestSuiteExpected2.public_id(): {
-                TCTRExpectedCaseNotApplicable.public_id(): 1,
-            },
+    test_cases = schemas.SelectedTests(
+        __root__={
+            "tool_unit_tests": {
+                TestSuiteExpected.public_id(): {
+                    TCTRExpectedCaseNotApplicable.public_id(): 1,
+                    TCTRExpectedPass.public_id(): 1,
+                },
+                TestSuiteExpected2.public_id(): {
+                    TCTRExpectedCaseNotApplicable.public_id(): 1,
+                },
+            }
         }
-    }
+    )
 
     runner = load_test_run_for_test_cases(db, test_cases)
     run = runner.test_run
@@ -359,16 +365,18 @@ async def test_runner_all_test_cases_not_applicable(db: Session) -> None:
         db (Session): Database fixture for creating test models.
     """
 
-    test_cases = {
-        "tool_unit_tests": {
-            TestSuiteExpected.public_id(): {
-                TCTRExpectedCaseNotApplicable.public_id(): 1,
-            },
-            TestSuiteExpected2.public_id(): {
-                TCTRExpectedCaseNotApplicable.public_id(): 1,
-            },
+    test_cases = schemas.SelectedTests(
+        __root__={
+            "tool_unit_tests": {
+                TestSuiteExpected.public_id(): {
+                    TCTRExpectedCaseNotApplicable.public_id(): 1,
+                },
+                TestSuiteExpected2.public_id(): {
+                    TCTRExpectedCaseNotApplicable.public_id(): 1,
+                },
+            }
         }
-    }
+    )
 
     runner = load_test_run_for_test_cases(db, test_cases)
     run = runner.test_run
@@ -414,11 +422,13 @@ async def test_test_runner_load__load_multiple_runs_simultaneously(db: Session) 
     Args:
         db (Session): Database fixture for creating test data.
     """
-    selected_tests = {
-        "tool_unit_tests": {
-            "TestSuiteExpected": {"TCTRExpectedPass": 1},
+    selected_tests = schemas.SelectedTests(
+        __root__={
+            "tool_unit_tests": {
+                "TestSuiteExpected": {"TCTRExpectedPass": 1},
+            }
         }
-    }
+    )
 
     test_runner = load_test_run_for_test_cases(db=db, test_cases=selected_tests)
     assert test_runner.state != TestRunnerState.IDLE
@@ -456,11 +466,13 @@ async def test_test_runner_non_existant_test_case(db: Session) -> None:
     Args:
         db (Session): Database fixture for creating test data.
     """
-    selected_tests = {
-        "tool_unit_tests": {
-            "TestSuiteExpected": {"TCNonExistant": 1},
+    selected_tests = schemas.SelectedTests(
+        __root__={
+            "tool_unit_tests": {
+                "TestSuiteExpected": {"TCNonExistant": 1},
+            }
         }
-    }
+    )
 
     with pytest.raises(TestCaseNotFound):
         load_test_run_for_test_cases(db=db, test_cases=selected_tests)

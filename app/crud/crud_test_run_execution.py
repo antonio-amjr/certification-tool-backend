@@ -38,7 +38,6 @@ from app.schemas.test_run_execution import (
     TestRunExecutionUpdate,
     TestRunExecutionWithStats,
 )
-from app.schemas.test_selection import TestSelection
 from app.test_engine.test_script_manager import test_script_manager
 
 
@@ -211,13 +210,15 @@ class CRUDTestRunExecution(
         # TODO: while we change the API. selected tests can come from two places:
         # 1. Pass in directly
         # 2. from the optional test_run_config
-        selected_tests: Optional[TestSelection] = kwargs.get("selected_tests")
+        selected_tests: Optional[dict[str, dict[str, dict[str, int]]]] = kwargs.get(
+            "selected_tests"
+        )
 
         if selected_tests is None:
             # We use the Pydantic schema to deserialize the selected_tests json column
             selected_tests = TestRunConfigInDB.from_orm(
                 test_run_execution.test_run_config
-            ).selected_tests
+            ).selected_tests.__root__
 
         test_suites = (
             test_script_manager.pending_test_suite_executions_for_selected_tests(

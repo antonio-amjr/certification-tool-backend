@@ -21,8 +21,8 @@ from sqlalchemy.orm import Session
 
 from app import crud, models
 from app.models import TestRunExecution, TestStateEnum
-from app.schemas import TestSelection
 from app.schemas.test_run_execution import TestRunExecutionCreate
+from app.schemas.test_selection import SelectedTests
 from app.tests.utils.project import create_random_project
 
 fake = Faker()
@@ -84,7 +84,9 @@ def create_random_test_run_execution_archived(
 
 
 def create_random_test_run_execution(
-    db: Session, selected_tests: Optional[TestSelection] = {}, **kwargs: Any
+    db: Session,
+    selected_tests: Optional[SelectedTests] = SelectedTests(__root__={}),
+    **kwargs: Any
 ) -> models.TestRunExecution:
     test_run_execution_dict = random_test_run_execution_dict(**kwargs)
 
@@ -93,8 +95,9 @@ def create_random_test_run_execution(
         test_run_execution_dict["project_id"] = project.id
 
     test_run_execution_in = TestRunExecutionCreate(**test_run_execution_dict)
+    selected_tests = selected_tests or SelectedTests(__root__={})
     return crud.test_run_execution.create(
-        db=db, obj_in=test_run_execution_in, selected_tests=selected_tests
+        db=db, obj_in=test_run_execution_in, selected_tests=selected_tests.__root__
     )
 
 
@@ -105,9 +108,9 @@ def create_random_test_run_execution_with_test_case_states(
     # run config with the same amount of test cases. We have to use a "real" test suite
     # and real test case
     num_test_cases = sum(test_case_states.values())
-    selected_tests: dict = {
-        "sample_tests": {"SampleTestSuite1": {"TCSS1001": num_test_cases}}
-    }
+    selected_tests = SelectedTests(
+        __root__={"sample_tests": {"SampleTestSuite1": {"TCSS1001": num_test_cases}}}
+    )
     test_run_execution = create_random_test_run_execution(
         db=db, selected_tests=selected_tests
     )
@@ -131,11 +134,13 @@ def create_test_run_execution_with_some_test_cases(
 ) -> TestRunExecution:
     return create_random_test_run_execution(
         db=db,
-        selected_tests={
-            "sample_tests": {
-                "SampleTestSuite1": {"TCSS1001": 1, "TCSS1002": 2, "TCSS1003": 3}
+        selected_tests=SelectedTests(
+            __root__={
+                "sample_tests": {
+                    "SampleTestSuite1": {"TCSS1001": 1, "TCSS1002": 2, "TCSS1003": 3}
+                }
             }
-        },
+        ),
         **kwargs
     )
 

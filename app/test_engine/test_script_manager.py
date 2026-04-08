@@ -27,11 +27,6 @@ from app.models import (
     TestSuiteExecution,
     TestSuiteMetadata,
 )
-from app.schemas.test_selection import (
-    TestCaseSelection,
-    TestSelection,
-    TestSuiteSelection,
-)
 from app.singleton import Singleton
 from app.test_engine.models.test_run import TestRun
 from app.test_engine.models.test_step import TestStep
@@ -122,7 +117,7 @@ class TestScriptManager(object, metaclass=Singleton):
             return discover_test_collections()
 
     def pending_test_suite_executions_for_selected_tests(
-        self, selected_tests: TestSelection
+        self, selected_tests: dict[str, dict[str, dict[str, int]]]
     ) -> list[TestSuiteExecution]:
         """
         This will create and associate pending test suites and test cases, based on the
@@ -386,7 +381,9 @@ class TestScriptManager(object, metaclass=Singleton):
     def available_test_suites(self) -> dict:
         return self.test_collections
 
-    def validate_test_selection(self, selection: TestSelection) -> None:
+    def validate_test_selection(
+        self, selection: dict[str, dict[str, dict[str, int]]]
+    ) -> None:
         for selected_collection_name in selection.keys():
             # Check collection is in test_collections
             if selected_collection_name not in self.test_collections.keys():
@@ -402,7 +399,7 @@ class TestScriptManager(object, metaclass=Singleton):
 
     def __validate_test_suite_selection_in_collection(
         self,
-        selection: TestSuiteSelection,
+        selection: dict[str, dict[str, int]],
         collection: TestCollectionDeclaration,
     ) -> None:
         for selected_test_suite_id in selection.keys():
@@ -419,7 +416,7 @@ class TestScriptManager(object, metaclass=Singleton):
 
     def __validate_test_case_selection_in_collection(
         self,
-        selection: TestCaseSelection,
+        selection: dict[str, int],
         collection: TestSuiteDeclaration,
     ) -> None:
         for selected_test_case_id in selection.keys():

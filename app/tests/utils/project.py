@@ -27,8 +27,8 @@ def create_random_project(
     db: Session, config: dict, pics: Optional[PICS] = PICS()
 ) -> models.Project:
     name = random_lower_string()
-    wifi_ssid = random_lower_string()
-    project_in = ProjectCreate(name=name, wifi_ssid=wifi_ssid, pics=pics)
+    # wifi_ssid = random_lower_string()
+    project_in = ProjectCreate(name=name, config=config, pics=pics if pics else PICS())
     project_in.config = config
 
     return crud.project.create(db=db, obj_in=project_in)

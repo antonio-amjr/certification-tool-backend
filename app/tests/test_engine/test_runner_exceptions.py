@@ -19,6 +19,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models import TestStateEnum
+from app.schemas.test_selection import SelectedTests
 from app.test_engine.models import TestCase, TestSuite
 from app.tests.utils.test_runner import (
     get_test_case_for_public_id,
@@ -316,7 +317,7 @@ async def test_exception_test_case_execution_and_cleanup(db: Session) -> None:
     assert "execution" in error_msg.lower()
 
     # Step 3
-    test_case.test_steps[2].state == TestStateEnum.CANCELLED
+    assert test_case.test_steps[2].state == TestStateEnum.PENDING
 
 
 @pytest.mark.asyncio
@@ -405,7 +406,7 @@ async def test_exception_test_case_execution_and_test_suite_cleanup(
     assert "execution" in error_msg.lower()
 
     # Step 3
-    test_case.test_steps[2].state == TestStateEnum.CANCELLED
+    assert test_case.test_steps[2].state == TestStateEnum.PENDING
 
 
 @pytest.mark.asyncio
@@ -466,12 +467,14 @@ async def test_exception_1st_test_suite_error_2nd_pass(
     test_case_id_1 = "TCException"
     test_suite_id_2 = "TestSuiteExpected"
     test_case_id_2 = "TCTRExpectedPass"
-    selected_tests = {
-        "tool_unit_tests": {
-            test_suite_id_1: {test_case_id_1: 1},
-            test_suite_id_2: {test_case_id_2: 1},
+    selected_tests = SelectedTests(
+        __root__={
+            "tool_unit_tests": {
+                test_suite_id_1: {test_case_id_1: 1},
+                test_suite_id_2: {test_case_id_2: 1},
+            }
         }
-    }
+    )
     test_runner = load_test_run_for_test_cases(db=db, test_cases=selected_tests)
     # Save test_run reference to inspect models after completion
     test_run = test_runner.test_run

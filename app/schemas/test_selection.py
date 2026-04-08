@@ -13,11 +13,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""Schemas for test selection structures."""
+
 from typing import Dict
 
-# {<TestCase.public_id>:iterations}
-TestCaseSelection = Dict[str, int]
-# {<TestSuite.public_id>:selected_test_cases}
-TestSuiteSelection = Dict[str, TestCaseSelection]
-# {<TestCollection.name>:selected_test_suites}
-TestSelection = Dict[str, TestSuiteSelection]
+from pydantic import BaseModel
+
+
+class SelectedTests(BaseModel):
+    """
+    Schema for selected tests structure.
+
+    This represents the nested dictionary structure for test selection:
+    - Outer dict: Test collection name -> Test suites
+    - Middle dict: Test suite public_id -> Test cases
+    - Inner dict: Test case public_id -> iteration count
+
+    Example:
+        {
+            "collection_name": {
+                "suite_id": {
+                    "case_id": 1
+                }
+            }
+        }
+    """
+
+    __root__: Dict[str, Dict[str, Dict[str, int]]]
+
+    class Config:
+        schema_extra = {"example": {"collection_name": {"suite_id": {"case_id": 1}}}}

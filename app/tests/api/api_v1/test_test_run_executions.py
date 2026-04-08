@@ -462,11 +462,13 @@ def test_create_test_run_execution_without_selected_tests_fails(
 
 def test_rename_test_run_execution_succeeds(client: TestClient, db: Session) -> None:
     renamed_title = "TestRunExecutionFoo"
-    selected_tests = {
-        "sample_tests": {
-            "SampleTestSuite1": {"TCSS1001": 1, "TCSS1002": 2, "TCSS1003": 3}
+    selected_tests = schemas.SelectedTests(
+        __root__={
+            "sample_tests": {
+                "SampleTestSuite1": {"TCSS1001": 1, "TCSS1002": 2, "TCSS1003": 3}
+            }
         }
-    }
+    )
     test_run_execution = create_random_test_run_execution(
         db=db, selected_tests=selected_tests
     )
@@ -627,11 +629,13 @@ def test_rename_not_valid_test_run_execution_fails(
 
 def test_rename_empty_execution_name_fails(client: TestClient, db: Session) -> None:
     renamed_title = " "
-    selected_tests = {
-        "sample_tests": {
-            "SampleTestSuite1": {"TCSS1001": 1, "TCSS1002": 2, "TCSS1003": 3}
+    selected_tests = schemas.SelectedTests(
+        __root__={
+            "sample_tests": {
+                "SampleTestSuite1": {"TCSS1001": 1, "TCSS1002": 2, "TCSS1003": 3}
+            }
         }
-    }
+    )
     test_run_execution = create_random_test_run_execution(
         db=db, selected_tests=selected_tests
     )
@@ -657,12 +661,14 @@ def test_repeat_existing_test_run_execution_with_two_suites_succeeds(
     that will be repeated. The title and description are provided by the JSON payload.
     """
 
-    selected_tests = {
-        "sample_tests": {
-            "SampleTestSuite1": {"TCSS1001": 1, "TCSS1002": 2, "TCSS1003": 3},
-            "SampleTestSuite2": {"TCSS2004": 4, "TCSS2005": 5, "TCSS2006": 6},
+    selected_tests = schemas.SelectedTests(
+        __root__={
+            "sample_tests": {
+                "SampleTestSuite1": {"TCSS1001": 1, "TCSS1002": 2, "TCSS1003": 3},
+                "SampleTestSuite2": {"TCSS2004": 4, "TCSS2005": 5, "TCSS2006": 6},
+            }
         }
-    }
+    )
     test_run_execution = create_random_test_run_execution(
         db=db, selected_tests=selected_tests
     )
@@ -688,7 +694,7 @@ def test_repeat_existing_test_run_execution_with_two_suites_succeeds(
 
     suites = content.get("test_suite_executions")
     returned_suites = [s["public_id"] for s in suites]
-    for selected_suite in selected_tests["sample_tests"].keys():
+    for selected_suite in selected_tests.__root__["sample_tests"].keys():
         assert selected_suite in returned_suites
 
 
@@ -700,11 +706,13 @@ def test_repeat_existing_test_run_execution_with_title_succeeds(
     A success is expected.
     """
     title = "TestRunExecutionFoo"
-    selected_tests = {
-        "sample_tests": {
-            "SampleTestSuite1": {"TCSS1001": 1, "TCSS1002": 2, "TCSS1003": 3}
+    selected_tests = schemas.SelectedTests(
+        __root__={
+            "sample_tests": {
+                "SampleTestSuite1": {"TCSS1001": 1, "TCSS1002": 2, "TCSS1003": 3}
+            }
         }
-    }
+    )
     test_run_execution = create_random_test_run_execution(
         db=db, selected_tests=selected_tests
     )
@@ -730,12 +738,14 @@ def test_repeat_existing_test_run_execution_certification_mode_with_two_suites_s
     that will be repeated. The title and description are provided by the JSON payload.
     """
 
-    selected_tests = {
-        "sample_tests": {
-            "SampleTestSuite1": {"TCSS1001": 1, "TCSS1002": 2, "TCSS1003": 3},
-            "SampleTestSuite2": {"TCSS2004": 4, "TCSS2005": 5, "TCSS2006": 6},
+    selected_tests = schemas.SelectedTests(
+        __root__={
+            "sample_tests": {
+                "SampleTestSuite1": {"TCSS1001": 1, "TCSS1002": 2, "TCSS1003": 3},
+                "SampleTestSuite2": {"TCSS2004": 4, "TCSS2005": 5, "TCSS2006": 6},
+            }
         }
-    }
+    )
     test_run_execution = create_random_test_run_execution(
         db=db, selected_tests=selected_tests, certification_mode=True
     )
@@ -761,7 +771,7 @@ def test_repeat_existing_test_run_execution_certification_mode_with_two_suites_s
 
     suites = content.get("test_suite_executions")
     returned_suites = [s["public_id"] for s in suites]
-    for selected_suite in selected_tests["sample_tests"].keys():
+    for selected_suite in selected_tests.__root__["sample_tests"].keys():
         assert selected_suite in returned_suites
 
 
@@ -773,11 +783,13 @@ def test_repeat_existing_test_run_execution_certification_mode_with_title_succee
     A success is expected.
     """
     title = "TestRunExecutionFoo"
-    selected_tests = {
-        "sample_tests": {
-            "SampleTestSuite1": {"TCSS1001": 1, "TCSS1002": 2, "TCSS1003": 3}
+    selected_tests = schemas.SelectedTests(
+        __root__={
+            "sample_tests": {
+                "SampleTestSuite1": {"TCSS1001": 1, "TCSS1002": 2, "TCSS1003": 3}
+            }
         }
-    }
+    )
     test_run_execution = create_random_test_run_execution(
         db=db, selected_tests=selected_tests, certification_mode=True
     )
@@ -1296,11 +1308,13 @@ def test_test_runner_status_idle(client: TestClient) -> None:
 async def test_test_runner_status_running(
     async_client: AsyncClient, db: Session
 ) -> None:
-    selected_tests = {
-        "tool_unit_tests": {
-            "TestSuiteExpected": {"TCTRExpectedPass": 1},
+    selected_tests = schemas.SelectedTests(
+        __root__={
+            "tool_unit_tests": {
+                "TestSuiteExpected": {"TCTRExpectedPass": 1},
+            }
         }
-    }
+    )
 
     test_runner = load_test_run_for_test_cases(db=db, test_cases=selected_tests)
 

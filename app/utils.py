@@ -26,11 +26,12 @@ from typing import IO, Any, Dict, Optional, Tuple, Type
 import emails
 from emails.template import JinjaTemplate
 from jose import jwt
+from jose.exceptions import JWTError
 from loguru import logger
 
 from app.core.config import settings
 from app.models import TestRunExecution
-from app.schemas import TestSelection
+from app.schemas import SelectedTests
 
 TEST_COLLECTIONS = "test_collections"
 TEST_ENVIRONMENT_CONFIG_NAME = "default_project.config"
@@ -140,7 +141,7 @@ def verify_password_reset_token(token: str) -> Optional[str]:
     try:
         decoded_token = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         return decoded_token["email"]
-    except jwt.JWTError:
+    except JWTError:
         return None
 
 
@@ -164,8 +165,10 @@ def read_information_from_file(filepath: Path) -> str:
             return f.readline().rstrip()
 
 
-def selected_tests_from_execution(run: TestRunExecution) -> TestSelection:
-    selected_tests: TestSelection = {}
+def selected_tests_from_execution(
+    run: TestRunExecution,
+) -> SelectedTests:
+    selected_tests: dict[str, dict[str, dict[str, int]]] = {}
 
     for suite in run.test_suite_executions:
         selected_tests.setdefault(suite.collection_id, {})
@@ -189,7 +192,7 @@ def selected_tests_from_execution(run: TestRunExecution) -> TestSelection:
                     {case.public_id: case_count}
                 )
 
-    return selected_tests
+    return SelectedTests(__root__=selected_tests)
 
 
 def formated_datetime_now_str() -> str:

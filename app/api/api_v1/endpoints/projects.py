@@ -259,14 +259,14 @@ def __persist_dmp_test_skip(file: UploadFile, db: Session, project: Project) -> 
 async def upload_pics(
     *,
     db: Session = Depends(get_db),
-    file: UploadFile = File(...),
+    upload: schemas.ProjectFileUpload = Depends(),
     id: int,
 ) -> models.Project:
     """Upload PICS or dmp-test-skip.xml file of a project based on project identifier.
 
     Args:
         id (int): project id
-        file : the PICS or dmp-test-skip.xml file to upload
+        upload (ProjectFileUpload): File upload containing the PICS or dmp-test-skip.xml file
 
     Raises:
         HTTPException: if no project exists for provided project id (or)
@@ -277,6 +277,7 @@ async def upload_pics(
         information.
     """
     project = __project(db=db, id=id)
+    file = upload.file  # Extract the file from the upload model
 
     try:
         if file and file.filename and file.filename.startswith(DMP_TEST_SKIP_FILENAME):
@@ -426,13 +427,13 @@ def export_project_config(
 def importproject_config(
     *,
     db: Session = Depends(get_db),
-    import_file: UploadFile = File(...),
+    import_data: schemas.ProjectConfigImport = Depends(),
 ) -> models.Project:
     """
     Imports the project config
 
     Args:
-        import_file : The project config file to be imported
+        import_data (ProjectConfigImport): Project configuration file to be imported
 
     Raises:
         ValidationError: if the imported project config contains invalid information
@@ -440,7 +441,7 @@ def importproject_config(
     Returns:
         Project: newly created project record
     """
-
+    import_file = import_data.import_file  # Extract the file from the upload model
     file_content = import_file.file.read().decode("utf-8")
     file_dict = json.loads(file_content)
 

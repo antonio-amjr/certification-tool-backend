@@ -20,6 +20,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models import TestStateEnum
+from app.schemas.test_selection import SelectedTests
 from app.test_engine.test_runner import TestRunner
 from app.tests.utils.test_runner import (
     get_test_case_for_public_id,
@@ -215,7 +216,9 @@ async def test_abort_case_cleanup_2_tests_1_suite(db: Session) -> None:
 def __load_abort_tests(db: Session) -> Tuple[TestSuiteNeverEnding, TCNeverEnding]:
     test_suite_id = "TestSuiteNeverEnding"
     test_case_id = "TCNeverEnding"
-    selected_tests = {"tool_unit_tests": {test_suite_id: {test_case_id: 1}}}
+    selected_tests = SelectedTests(
+        __root__={"tool_unit_tests": {test_suite_id: {test_case_id: 1}}}
+    )
     test_runner = load_test_run_for_test_cases(db=db, test_cases=selected_tests)
     run = test_runner.test_run
     assert run is not None
@@ -242,12 +245,14 @@ def __load_abort_tests_2_suites(
     test_suite_id_2 = "TestSuiteExpected"
     test_case_id_2 = "TCTRExpectedPass"
 
-    selected_tests = {
-        "tool_unit_tests": {
-            test_suite_id_1: {test_case_id_1: 1},
-            test_suite_id_2: {test_case_id_2: 1},
+    selected_tests = SelectedTests(
+        __root__={
+            "tool_unit_tests": {
+                test_suite_id_1: {test_case_id_1: 1},
+                test_suite_id_2: {test_case_id_2: 1},
+            }
         }
-    }
+    )
     test_runner = load_test_run_for_test_cases(db=db, test_cases=selected_tests)
     run = test_runner.test_run
     assert run is not None
@@ -282,11 +287,13 @@ def __load_abort_tests_2_tests_1_suite(
     test_case_id_1 = "TCNeverEnding"
     test_case_id_2 = "TCNeverEndingV2"
 
-    selected_tests = {
-        "tool_unit_tests": {
-            test_suite_id_1: {test_case_id_1: 1, test_case_id_2: 2},
+    selected_tests = SelectedTests(
+        __root__={
+            "tool_unit_tests": {
+                test_suite_id_1: {test_case_id_1: 1, test_case_id_2: 2},
+            }
         }
-    }
+    )
     test_runner = load_test_run_for_test_cases(db=db, test_cases=selected_tests)
     run = test_runner.test_run
     assert run is not None

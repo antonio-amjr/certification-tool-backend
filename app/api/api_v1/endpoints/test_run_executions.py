@@ -94,18 +94,29 @@ def read_test_run_executions(
 def create_test_run_execution(
     *,
     db: Session = Depends(get_db),
-    test_run_execution_in: schemas.TestRunExecutionCreate,
-    selected_tests: schemas.TestSelection,
+    request: schemas.TestRunExecutionCreateRequest,
     certification_mode: bool = False,
 ) -> TestRunExecution:
-    """Create a new test run execution."""
+    """Create a new test run execution.
+
+    Args:
+        db (Session): Database session
+        request (TestRunExecutionCreateRequest): Request containing test run execution data and selected tests
+        certification_mode (bool): Whether to run in certification mode
+
+    Returns:
+        TestRunExecution: The created test run execution
+    """
+    # Extract from request model
+    test_run_execution_in = request.test_run_execution_in
+    selected_tests = request.selected_tests
 
     # TODO: Remove test_run_config completely from the project
     test_run_execution_in.test_run_config_id = None
     test_run_execution_in.certification_mode = certification_mode
 
     test_run_execution = crud.test_run_execution.create(
-        db=db, obj_in=test_run_execution_in, selected_tests=selected_tests
+        db=db, obj_in=test_run_execution_in, selected_tests=selected_tests.__root__
     )
     return test_run_execution
 
@@ -176,11 +187,7 @@ def _cli_project(
 def create_cli_test_run_execution(
     *,
     db: Session = Depends(get_db),
-    test_run_execution_in: schemas.TestRunExecutionCreate,
-    selected_tests: schemas.TestSelection,
-    config: dict | None = None,
-    execution_config: dict | None = None,
-    pics: dict = {},
+    request: schemas.CLITestRunExecutionCreateRequest,
 ) -> TestRunExecution:
     """Creates a new test run execution on CLI request.
        Attention: if both config and execution_config are provided,
@@ -188,12 +195,19 @@ def create_cli_test_run_execution(
        this execution only.
 
     Args:
-        test_run_execution_in: Test run execution data
-        selected_tests: Selected tests to run
-        config: Configuration parameters that update project (optional, persists)
-        execution_config: Execution-specific config override (optional, temporary)
-        pics: PICS configuration (optional)
+        db (Session): Database session
+        request (CLITestRunExecutionCreateRequest): Request containing test run execution data,
+            selected tests, config, execution_config, and PICS
+
+    Returns:
+        TestRunExecution: The created test run execution
     """
+    # Extract from request model
+    test_run_execution_in = request.test_run_execution_in
+    selected_tests = request.selected_tests
+    config = request.config
+    execution_config = request.execution_config
+    pics = request.pics
 
     # Convert pics dict to PICS object if provided
     logger.info(f"CLI PICS Arguments: {pics}")
@@ -217,7 +231,7 @@ def create_cli_test_run_execution(
     test_run_execution_in.certification_mode = False
 
     test_run_execution = crud.test_run_execution.create(
-        db=db, obj_in=test_run_execution_in, selected_tests=selected_tests
+        db=db, obj_in=test_run_execution_in, selected_tests=selected_tests.__root__
     )
     return test_run_execution
 
@@ -466,7 +480,7 @@ def repeat_test_run_execution(
     selected_tests = selected_tests_from_execution(execution_to_repeat)
 
     return crud.test_run_execution.create(
-        db=db, obj_in=test_run_execution_in, selected_tests=selected_tests
+        db=db, obj_in=test_run_execution_in, selected_tests=selected_tests.__root__
     )
 
 
@@ -580,13 +594,14 @@ def download_grouped_log(
 @router.post("/file_upload/")
 def upload_file(
     *,
-    file: UploadFile = File(...),
+    upload: schemas.TestRunFileUpload = Depends(),
 ) -> None:
     """Upload a file to the specified path of the current test run.
 
     Args:
-        file: The file to upload.
+        upload (TestRunFileUpload): File upload data containing the file to upload.
     """
+    file = upload.file  # Extract the file from the upload model
     try:
         TestRunner().handle_uploaded_file(file=file)
     except AttributeError as error:
@@ -637,12 +652,20 @@ def import_test_run_execution(
     *,
     db: Session = Depends(get_db),
     project_id: int,
-    import_file: UploadFile = File(...),
+    import_data: schemas.TestRunExecutionImport = Depends(),
 ) -> models.TestRunExecution:
     """
-    Imports a test run execution to the the given project_id.
-    """
+    Imports a test run execution to the given project_id.
 
+    Args:
+        db (Session): Database session
+        project_id (int): ID of the project to import into
+        import_data (TestRunExecutionImport): Import file data containing the test run execution
+
+    Returns:
+        TestRunExecution: The imported test run execution
+    """
+    import_file = import_data.import_file  # Extract the file from the upload model
     file_content = import_file.file.read().decode("utf-8")
     file_dict = json.loads(file_content)
 

@@ -25,7 +25,7 @@ import pytest
 from fastapi import HTTPException, UploadFile
 from fastapi.encoders import jsonable_encoder
 
-from app import crud
+from app import crud, schemas
 from app.api.api_v1.endpoints.test_run_executions import (
     export_test_run_execution,
     import_test_run_execution,
@@ -107,13 +107,14 @@ def test_import_test_run_execution_with_missing_db_revision() -> None:
 
     file = io.BytesIO(imported_file_content)
     imported_file = UploadFile(file=file)
+    import_data = schemas.TestRunExecutionImport(import_file=imported_file)
 
     with mock.patch(
         "app.version.version_information.db_revision",
         db_revision_test,
     ), pytest.raises(HTTPException) as e:
         import_test_run_execution(
-            db=mock.MagicMock(), project_id=1, import_file=imported_file
+            db=mock.MagicMock(), project_id=1, import_data=import_data
         )
 
     assert "db_revision" in e.value.detail
@@ -131,13 +132,14 @@ def test_import_test_run_execution_with_missing_test_run_execution() -> None:
 
     file = io.BytesIO(imported_file_content)
     imported_file = UploadFile(file=file)
+    import_data = schemas.TestRunExecutionImport(import_file=imported_file)
 
     with mock.patch(
         "app.version.version_information.db_revision",
         db_revision_test,
     ), pytest.raises(HTTPException) as e:
         import_test_run_execution(
-            db=mock.MagicMock(), project_id=1, import_file=imported_file
+            db=mock.MagicMock(), project_id=1, import_data=import_data
         )
 
     assert "test_run_execution" in e.value.detail
@@ -160,13 +162,14 @@ def test_import_test_run_execution_db_revision_mismatch() -> None:
 
     file = io.BytesIO(imported_file_content)
     imported_file = UploadFile(file=file)
+    import_data = schemas.TestRunExecutionImport(import_file=imported_file)
 
     with mock.patch(
         "app.version.version_information.db_revision",
         db_revision_test,
     ), pytest.raises(HTTPException) as e:
         import_test_run_execution(
-            db=mock.MagicMock(), project_id=1, import_file=imported_file
+            db=mock.MagicMock(), project_id=1, import_data=import_data
         )
 
     assert (
@@ -190,6 +193,7 @@ def test_import_test_run_execution_raises_HTTPException() -> None:
 
     file = io.BytesIO(imported_file_content)
     imported_file = UploadFile(file=file)
+    import_data = schemas.TestRunExecutionImport(import_file=imported_file)
 
     with mock.patch(
         "app.version.version_information.db_revision",
@@ -202,7 +206,7 @@ def test_import_test_run_execution_raises_HTTPException() -> None:
         HTTPException
     ) as e:
         import_test_run_execution(
-            db=mock.MagicMock(), project_id=1, import_file=imported_file
+            db=mock.MagicMock(), project_id=1, import_data=import_data
         )
     assert e.value.detail == "Import Exception raised"
     assert e.value.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -224,6 +228,7 @@ def test_import_test_run_execution_successfully() -> None:
 
     file = io.BytesIO(imported_file_content)
     imported_file = UploadFile(file=file)
+    import_data = schemas.TestRunExecutionImport(import_file=imported_file)
 
     execution_mock = TestRunExecution(title="Execution test")
 
@@ -236,7 +241,7 @@ def test_import_test_run_execution_successfully() -> None:
         return_value=execution_mock,
     ) as mock_import_execution:
         import_result = import_test_run_execution(
-            db=mock.MagicMock(), project_id=1, import_file=imported_file
+            db=mock.MagicMock(), project_id=1, import_data=import_data
         )
 
         assert import_result.title == execution_mock.title
