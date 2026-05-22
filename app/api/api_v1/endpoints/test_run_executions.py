@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Project CHIP Authors
+# Copyright (c) 2023-2026 Project CHIP Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,9 +14,12 @@
 # limitations under the License.
 #
 import json
+import os
+from datetime import datetime
 from http import HTTPStatus
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+import requests
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -29,6 +32,7 @@ from app.api import DEFAULT_404_MESSAGE
 from app.crud.crud_test_run_execution import ImportError
 from app.db.session import get_db
 from app.default_environment_config import default_environment_config
+from app.models.project import Project
 from app.models.test_run_execution import TestRunExecution
 from app.schemas.test_run_execution import TestRunExecutionUpdate
 from app.test_engine import TEST_ENGINE_ABORTING_TESTING_MESSAGE
@@ -40,20 +44,26 @@ from app.utils import (
     selected_tests_from_execution,
 )
 from app.version import version_information
+from test_collections.matter.sdk_tests.support.chip.chip_server import ChipServer
+from test_collections.matter.sdk_tests.support.performance_tests.utils import (
+    create_summary_report,
+)
+from test_collections.matter.test_environment_config import TestEnvironmentConfigMatter
 
 router = APIRouter()
 
 DEFAULT_CLI_PROJECT_NAME = "CLI Project Execution"
 
 
-@router.get("/", response_model=List[schemas.TestRunExecutionWithStats])
+@router.get("/", response_model=list[schemas.TestRunExecutionWithStats])
 def read_test_run_executions(
     db: Session = Depends(get_db),
-    project_id: Optional[int] = None,
+    project_id: int | None = None,
     archived: bool = False,
-    search_query: Optional[str] = None,
+    search_query: str | None = None,
     skip: int = 0,
     limit: int = 100,
+    sort_order: str = "asc",
 ) -> list[schemas.TestRunExecutionWithStats]:
     """Retrieve test runs, including statistics.
 
@@ -62,7 +72,9 @@ def read_test_run_executions(
         archived: Get archived test runs, when true will return archived
             test runs only, when false only non-archived test runs are returned.
         skip: Pagination offset.
-        limit: Max number of records to return.
+        limit: Max number of records to return. Set to 0 to return all results.
+        sort_order: Sort order for results. Either "asc" or "desc". Defaults to "asc".
+            Results are sorted by ID.
 
     Returns:
         List of test runs with execution statistics.
@@ -74,6 +86,7 @@ def read_test_run_executions(
         search_query=search_query,
         skip=skip,
         limit=limit,
+        sort_order=sort_order,
     )
 
 
@@ -97,23 +110,35 @@ def create_test_run_execution(
     return test_run_execution
 
 
-def __convert_pics_dict_to_object(pics: dict) -> Optional[schemas.PICS]:
-    """Convert a dictionary to a PICS object.
+def _cli_project(
+    db: Session,
+    project_id: int | None,
+) -> Project:
+    """Retrieve or create the default CLI project."""
 
-    Args:
-        pics (dict): Dictionary containing PICS data
+    # If project_id not is provided, try to retrieve the Default CLI project
+    if project_id is None:
+        # If the default CLI project does not exist, create it
+        if not (
+            cli_project := crud.project.get_by_name(
+                db=db, name=DEFAULT_CLI_PROJECT_NAME
+            )
+        ):
+            project_create = schemas.ProjectCreate(
+                name=DEFAULT_CLI_PROJECT_NAME,
+                config=default_environment_config.__dict__,
+                pics=schemas.PICS(clusters={}),
+            )
+            return crud.project.create(db=db, obj_in=project_create)
+    else:
+        cli_project = crud.project.get(db=db, id=project_id)
+        if not cli_project:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail=f"Project with ID {project_id} not found.",
+            )
 
-    Returns:
-        schemas.PICS: PICS object if conversion successful.
-    """
-    if not pics:
-        return schemas.PICS(clusters={})
-
-    try:
-        return schemas.PICS(**pics)
-    except Exception as e:
-        logger.error(f"Invalid PICS data: {e}")
-        return None
+    return cli_project
 
 
 @router.post("/cli", response_model=schemas.TestRunExecutionWithChildren)
@@ -122,66 +147,33 @@ def create_cli_test_run_execution(
     db: Session = Depends(get_db),
     test_run_execution_in: schemas.TestRunExecutionCreate,
     selected_tests: schemas.TestSelection,
-    config: Optional[dict] = None,
-    pics: dict = {},
+    execution_config: dict | None = None,
+    execution_pics: dict | None = None,
 ) -> TestRunExecution:
     """Creates a new test run execution on CLI request.
 
     Args:
         test_run_execution_in: Test run execution data
         selected_tests: Selected tests to run
-        config: Configuration parameters (optional)
-        pics: PICS configuration (optional)
+        execution_config: Execution-specific config override (optional, temporary)
+        execution_pics: Execution-specific PICS override (optional, temporary)
+    Returns:
+        The created TestRunExecution.
     """
-    if config is None:
-        config = default_environment_config.__dict__
 
-    logger.info(f"CLI Config Arguments: {config}")
-    logger.info(f"CLI PICS Arguments: {pics}")
+    # Retrieve or create the CLI project
+    cli_project = _cli_project(db, test_run_execution_in.project_id)
+    test_run_execution_in.project_id = cli_project.id
 
-    # Convert pics dict to PICS object if provided
-    pics_obj = __convert_pics_dict_to_object(pics)
-    if pics_obj is None:
-        raise HTTPException(
-            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-            detail="Invalid PICS data provided. Please check the format.",
-        )
+    # Store execution_config if provided (temporary, per-execution)
+    if execution_config is not None:
+        logger.info(f"CLI Execution Config (Temporary): {execution_config}")
+        test_run_execution_in.execution_config = execution_config
 
-    # Use provided project_id or default CLI project
-    if test_run_execution_in.project_id is not None:
-        project = crud.project.get(db=db, id=test_run_execution_in.project_id)
-        # Use the specified project_id
-        if not project:
-            raise HTTPException(
-                status_code=HTTPStatus.NOT_FOUND,
-                detail=f"Project with id {test_run_execution_in.project_id} not found.",
-            )
-        project_update = schemas.ProjectUpdate(config=config)
-
-        if pics_obj:
-            project_update.pics = pics_obj
-
-        project = crud.project.update(db=db, db_obj=project, obj_in=project_update)
-    else:
-        # Retrieve the default CLI project
-        cli_project = crud.project.get_by_name(db=db, name=DEFAULT_CLI_PROJECT_NAME)
-
-        # If the default CLI project does not exist, create it
-        if not cli_project:
-            project_create = schemas.ProjectCreate(name=DEFAULT_CLI_PROJECT_NAME)
-            project_create.config = config
-            if pics_obj:
-                project_create.pics = pics_obj
-            project = crud.project.create(db=db, obj_in=project_create)
-        else:
-            # Update the default CLI project with the cli config argument and pics
-            project_update = schemas.ProjectUpdate(config=config)
-            if pics_obj:
-                project_update.pics = pics_obj
-            project = crud.project.update(
-                db=db, db_obj=cli_project, obj_in=project_update
-            )
-        test_run_execution_in.project_id = project.id
+    # Store execution_pics if provided (temporary, per-execution)
+    if execution_pics is not None:
+        logger.info(f"CLI Execution PICS (Temporary): {execution_pics}")
+        test_run_execution_in.execution_pics = execution_pics
 
     test_run_execution_in.certification_mode = False
 
@@ -213,7 +205,7 @@ def rename_test_run_execution(
     )
 
 
-@router.post("/abort-testing", response_model=Dict[str, str])
+@router.post("/abort-testing", response_model=dict[str, str])
 def abort_testing(
     *,
     db: Session = Depends(get_db),
@@ -247,6 +239,50 @@ def get_test_runner_status() -> dict[str, Any]:
         status["test_run_execution_id"] = test_runner.test_run.test_run_execution.id
 
     return status
+
+
+@router.get("/chip-server/info", response_model=schemas.ChipServerInfo)
+def get_chip_server_info(
+    discriminator: str | None = None,
+    setup_pin_code: str | None = None,
+    version: int = 0,
+    vendor_id: int = 0,
+    product_id: int = 0,
+) -> schemas.ChipServerInfo:
+    """
+    Retrieve ChipServer node ID information and generate manual pairing code.
+
+    Note: Manual pairing code generation requires the SDK container to be running.
+    If called before the SDK container starts, manual_pairing_code will be None.
+
+    Args:
+        discriminator: Device discriminator (optional)
+        setup_pin_code: Setup PIN code (optional)
+        version: Version number (default: 0)
+        vendor_id: Vendor ID (default: 0)
+        product_id: Product ID (default: 0)
+
+    Returns:
+        ChipServerInfo: Contains node_id, node_id_hex, and optional manual_pairing_code.
+    """
+    chip_server = ChipServer()
+    node_id = chip_server.node_id
+
+    manual_pairing_code = None
+    if discriminator and setup_pin_code:
+        manual_pairing_code = chip_server.generate_manual_pairing_code_with_chip_tool(
+            discriminator=discriminator,
+            setup_pin_code=setup_pin_code,
+            version=version,
+            vendor_id=vendor_id,
+            product_id=product_id,
+        )
+
+    return schemas.ChipServerInfo(
+        node_id=node_id,
+        node_id_hex=hex(node_id),
+        manual_pairing_code=manual_pairing_code or None,
+    )
 
 
 @router.get("/{id}", response_model=schemas.TestRunExecutionWithChildren)
@@ -351,7 +387,7 @@ def unarchive(
 
 @router.post("/{id}/repeat", response_model=schemas.TestRunExecutionWithChildren)
 def repeat_test_run_execution(
-    *, db: Session = Depends(get_db), id: int, title: Optional[str] = None
+    *, db: Session = Depends(get_db), id: int, title: str | None = None
 ) -> TestRunExecution:
     """Repeat a test run execution by id.
 
@@ -379,13 +415,14 @@ def repeat_test_run_execution(
     date_now = formated_datetime_now_str()
     title += date_now
 
-    test_run_execution_in = schemas.TestRunExecutionCreate(title=title)
-    test_run_execution_in.description = execution_to_repeat.description
-    test_run_execution_in.project_id = execution_to_repeat.project_id
-    test_run_execution_in.operator_id = execution_to_repeat.operator_id
-    test_run_execution_in.certification_mode = execution_to_repeat.certification_mode
-    # TODO: Remove test_run_config completely from the project
-    test_run_execution_in.test_run_config_id = None
+    test_run_execution_in = schemas.TestRunExecutionCreate(
+        title=title,
+        description=execution_to_repeat.description,
+        project_id=execution_to_repeat.project_id,
+        operator_id=execution_to_repeat.operator_id,
+        certification_mode=execution_to_repeat.certification_mode,
+        test_run_config_id=None,
+    )
 
     selected_tests = selected_tests_from_execution(execution_to_repeat)
 
@@ -458,7 +495,25 @@ def download_log(
     )
 
 
-@router.get("/{id}/grouped-log", response_class=StreamingResponse)
+@router.get(
+    "/{id}/grouped-log",
+    response_class=StreamingResponse,
+    responses={
+        "200": {
+            "description": "Successful Response",
+            "content": {
+                "application/zip": {"schema": {"type": "string", "format": "binary"}}
+            },
+            "headers": {
+                "Content-Disposition": {
+                    "description": "Suggests a filename for the downloaded ZIP file",
+                    "schema": {"type": "string"},
+                    "example": 'attachment; filename="archive.zip"',
+                }
+            },
+        }
+    },
+)
 def download_grouped_log(
     *,
     db: Session = Depends(get_db),
@@ -600,3 +655,87 @@ def import_test_run_execution(
             status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
             detail=str(error),
         )
+
+
+date_pattern_out_file = "%Y_%m_%d_%H_%M_%S"
+
+
+@router.post("/{id}/performance_summary")
+def generate_summary_log(
+    *,
+    db: Session = Depends(get_db),
+    id: int,
+    project_id: int,
+) -> JSONResponse:
+    """
+    Imports a test run execution to the the given project_id.
+    """
+
+    project = crud.project.get(db=db, id=project_id)
+
+    if not project:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Project not found"
+        )
+
+    project_config = TestEnvironmentConfigMatter(**project.config)
+    matter_qa_url = None
+    LOGS_FOLDER = "/test_collections/logs"
+    HOST_BACKEND = os.getenv("BACKEND_FILEPATH_ON_HOST") or ""
+    HOST_OUT_FOLDER = HOST_BACKEND + LOGS_FOLDER
+
+    if (
+        project_config.test_parameters
+        and "matter_qa_url" in project_config.test_parameters
+    ):
+        matter_qa_url = project_config.test_parameters["matter_qa_url"]
+    else:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail="matter_qa_url must be configured",
+        )
+
+    page = requests.get(f"{matter_qa_url}/home")
+    if page.status_code is not int(HTTPStatus.OK):
+        raise HTTPException(
+            status_code=page.status_code,
+            detail=(
+                "The LogDisplay server is not responding.\n"
+                "Verify if the tool was installed, configured and initiated properly"
+            ),
+        )
+
+    commissioning_method = project_config.dut_config.pairing_mode
+
+    test_run_execution = crud.test_run_execution.get(db=db, id=id)
+    if not test_run_execution:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Test Run Execution not found"
+        )
+
+    log_lines_list = log_utils.convert_execution_log_to_list(
+        log=test_run_execution.log, json_entries=False
+    )
+
+    timestamp = ""
+    if test_run_execution.started_at:
+        timestamp = test_run_execution.started_at.strftime(date_pattern_out_file)
+    else:
+        timestamp = datetime.now().strftime(date_pattern_out_file)
+
+    tc_name, execution_time_folder = create_summary_report(
+        timestamp, log_lines_list, commissioning_method
+    )
+
+    target_dir = f"{HOST_OUT_FOLDER}/{execution_time_folder}/{tc_name}"
+    url_report = f"{matter_qa_url}/home/displayLogFolder?dir_path={target_dir}"
+
+    summary_report: dict = {}
+    summary_report["url"] = url_report
+
+    options: dict = {"media_type": "application/json"}
+
+    return JSONResponse(
+        jsonable_encoder(summary_report),
+        **options,
+    )

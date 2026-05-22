@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Project CHIP Authors
+# Copyright (c) 2025-2026 Project CHIP Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 from enum import Enum
 from typing import Type, TypeVar
 
+from app.constants.shared_constants import DutPairingModeEnum
 from app.schemas.test_environment_config import ThreadAutoConfig
 from app.test_engine.logger import test_engine_logger as logger
 from app.test_engine.models import TestSuite
@@ -23,10 +24,7 @@ from app.user_prompt_support.user_prompt_support import UserPromptSupport
 from test_collections.matter.sdk_tests.support.otbr_manager.otbr_manager import (
     ThreadBorderRouter,
 )
-from test_collections.matter.test_environment_config import (
-    DutPairingModeEnum,
-    TestEnvironmentConfigMatter,
-)
+from test_collections.matter.test_environment_config import TestEnvironmentConfigMatter
 
 from ...sdk_container import SDKContainer
 from ...utils import PromptOption, prompt_for_commissioning_mode
@@ -89,9 +87,7 @@ class PythonTestSuite(TestSuite):
                 "name": name,
                 "python_test_version": python_test_version,
                 "metadata": {
-                    "public_id": name
-                    if python_test_version != "custom"
-                    else name + "-custom",
+                    "public_id": name,
                     "version": "0.0.1",
                     "title": name,
                     "description": name,
@@ -107,6 +103,10 @@ class PythonTestSuite(TestSuite):
 
         logger.info("Setting up SDK container")
         await self.sdk_container.start()
+
+        self.matter_config = TestEnvironmentConfigMatter(**self.config)
+        # pcscd is required for NFC reader access regardless of pairing mode
+        self.sdk_container.send_command("--disable-polkit", prefix="pcscd")
 
         if len(self.pics.clusters) > 0:
             logger.info("Create PICS file for DUT")
@@ -128,23 +128,22 @@ class CommissioningPythonTestSuite(PythonTestSuite, UserPromptSupport):
     async def setup(self) -> None:
         await super().setup()
 
-        matter_config = TestEnvironmentConfigMatter(**self.config)
-
-        # If in BLE-Thread or NFC-Thread mode and a Thread Auto-Config was provided by
-        # the user, start a new OTBR container app with the according Thread topology
-        # for all tests in the Python Tests Suite.
-        if (
-            matter_config.dut_config.pairing_mode == DutPairingModeEnum.BLE_THREAD
-            or matter_config.dut_config.pairing_mode == DutPairingModeEnum.NFC_THREAD
-        ) and isinstance(matter_config.network.thread, ThreadAutoConfig):
-            await self.border_router.start_device(matter_config.network.thread)
+        # If in BLE-Thread, NFC-Thread, or THREAD_MESHCOP mode and a Thread Auto-Config
+        # was provided by the user, start a new OTBR container app with the according
+        # Thread topology for all tests in the Python Tests Suite.
+        if self.matter_config.dut_config.pairing_mode in (
+            DutPairingModeEnum.BLE_THREAD,
+            DutPairingModeEnum.NFC_THREAD,
+            DutPairingModeEnum.THREAD_MESHCOP,
+        ) and isinstance(self.matter_config.network.thread, ThreadAutoConfig):
+            await self.border_router.start_device(self.matter_config.network.thread)
             await self.border_router.form_thread_topology()
 
         # If a local copy of admin_storage.json file exists, prompt user if the
         # execution should retrieve the previous commissioning information or
         # if it should perform a new commissioning
         if await should_perform_new_commissioning(
-            self, config=matter_config, logger=logger
+            self, config=self.matter_config, logger=logger
         ):
             logger.info("User chose prompt option YES")
             user_response = await prompt_for_commissioning_mode(
@@ -157,4 +156,4 @@ class CommissioningPythonTestSuite(PythonTestSuite, UserPromptSupport):
                 )
 
             logger.info("Commission DUT")
-            await commission_device(matter_config, logger=logger)
+            await commission_device(self.matter_config, logger=logger)

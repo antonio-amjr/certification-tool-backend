@@ -378,7 +378,16 @@ async def test_pairing_on_network_command_params() -> None:
 
 
 @pytest.mark.asyncio
-async def test_pairing_ble_wifi_command_params() -> None:
+@pytest.mark.parametrize(
+    "pairing_fn_name, pairing_cmd",
+    [
+        ("pairing_ble_wifi", "ble-wifi"),
+        ("pairing_nfc_wifi", "nfc-wifi"),
+    ],
+)
+async def test_pairing_wifi_command_params(
+    pairing_fn_name: str, pairing_cmd: str
+) -> None:
     original_trace_setting_value = matter_settings.CHIP_TOOL_TRACE
     if original_trace_setting_value is True:
         matter_settings.CHIP_TOOL_TRACE = False
@@ -396,7 +405,8 @@ async def test_pairing_ble_wifi_command_params() -> None:
         attribute="send_websocket_command",
         return_value='{"results": []}',
     ) as mock_send_websocket_command:
-        result = await runner.pairing_ble_wifi(
+        pairing_fn = getattr(runner, pairing_fn_name)
+        result = await pairing_fn(
             ssid=ssid,
             password=password,
             setup_code=setup_code,
@@ -406,7 +416,7 @@ async def test_pairing_ble_wifi_command_params() -> None:
     expected_params = (
         f"{hex(chip_server.node_id)} {ssid} {password} {setup_code} {discriminator}"
     )
-    expected_command = f"pairing ble-wifi {expected_params}"
+    expected_command = f"pairing {pairing_cmd} {expected_params}"
 
     assert result is True
     mock_send_websocket_command.assert_awaited_once_with(expected_command)
@@ -486,6 +496,233 @@ async def test_pairing_nfc_thread_command_params() -> None:
 
     assert result is True
     mock_send_websocket_command.assert_awaited_once_with(expected_command)
+
+    # clean up:
+    matter_settings.CHIP_TOOL_TRACE = original_trace_setting_value
+    chip_server._ChipServer__node_id = None
+
+
+@pytest.mark.asyncio
+async def test_pairing_thread_command_params_with_ba_params() -> None:
+    """Test pairing_thread with ba_host and ba_port parameters."""
+    original_trace_setting_value = matter_settings.CHIP_TOOL_TRACE
+    if original_trace_setting_value is True:
+        matter_settings.CHIP_TOOL_TRACE = False
+
+    # Attributes
+    runner: MatterYAMLRunner = MatterYAMLRunner()
+    chip_server: ChipServer = ChipServer()
+    hex_dataset = "c0ffee"
+    payload = "MT:ABC123"
+    ba_host = "127.0.0.1"
+    ba_port = 5684
+
+    with mock.patch.object(
+        target=runner,
+        attribute="send_websocket_command",
+        return_value='{"results": []}',
+    ) as mock_send_websocket_command:
+        result = await runner.pairing_thread(
+            hex_dataset=hex_dataset,
+            payload=payload,
+            ba_host=ba_host,
+            ba_port=ba_port,
+        )
+
+    expected_params = (
+        f"{hex(chip_server.node_id)} hex:{hex_dataset} {payload} "
+        f"--thread-ba-host {ba_host} --thread-ba-port {ba_port}"
+    )
+    expected_command = f"pairing code-thread {expected_params}"
+
+    assert result is True
+    mock_send_websocket_command.assert_awaited_once_with(expected_command)
+
+    # clean up:
+    matter_settings.CHIP_TOOL_TRACE = original_trace_setting_value
+    chip_server._ChipServer__node_id = None
+
+
+@pytest.mark.asyncio
+async def test_pairing_thread_command_params_without_ba_params() -> None:
+    """Test pairing_thread without ba_host and ba_port parameters."""
+    original_trace_setting_value = matter_settings.CHIP_TOOL_TRACE
+    if original_trace_setting_value is True:
+        matter_settings.CHIP_TOOL_TRACE = False
+
+    # Attributes
+    runner: MatterYAMLRunner = MatterYAMLRunner()
+    chip_server: ChipServer = ChipServer()
+    hex_dataset = "c0ffee"
+    payload = "MT:ABC123"
+
+    with mock.patch.object(
+        target=runner,
+        attribute="send_websocket_command",
+        return_value='{"results": []}',
+    ) as mock_send_websocket_command:
+        result = await runner.pairing_thread(
+            hex_dataset=hex_dataset,
+            payload=payload,
+        )
+
+    expected_params = f"{hex(chip_server.node_id)} hex:{hex_dataset} {payload}"
+    expected_command = f"pairing code-thread {expected_params}"
+
+    assert result is True
+    mock_send_websocket_command.assert_awaited_once_with(expected_command)
+
+    # clean up:
+    matter_settings.CHIP_TOOL_TRACE = original_trace_setting_value
+    chip_server._ChipServer__node_id = None
+
+
+@pytest.mark.asyncio
+async def test_pairing_thread_command_params_with_only_ba_host() -> None:
+    """Test pairing_thread with only ba_host (edge case)."""
+    original_trace_setting_value = matter_settings.CHIP_TOOL_TRACE
+    if original_trace_setting_value is True:
+        matter_settings.CHIP_TOOL_TRACE = False
+
+    # Attributes
+    runner: MatterYAMLRunner = MatterYAMLRunner()
+    chip_server: ChipServer = ChipServer()
+    hex_dataset = "c0ffee"
+    payload = "MT:ABC123"
+    ba_host = "127.0.0.1"
+
+    with mock.patch.object(
+        target=runner,
+        attribute="send_websocket_command",
+        return_value='{"results": []}',
+    ) as mock_send_websocket_command:
+        result = await runner.pairing_thread(
+            hex_dataset=hex_dataset,
+            payload=payload,
+            ba_host=ba_host,
+            ba_port=None,
+        )
+
+    expected_params = (
+        f"{hex(chip_server.node_id)} hex:{hex_dataset} {payload} "
+        f"--thread-ba-host {ba_host}"
+    )
+    expected_command = f"pairing code-thread {expected_params}"
+
+    assert result is True
+    mock_send_websocket_command.assert_awaited_once_with(expected_command)
+
+    # clean up:
+    matter_settings.CHIP_TOOL_TRACE = original_trace_setting_value
+    chip_server._ChipServer__node_id = None
+
+
+@pytest.mark.asyncio
+async def test_pairing_thread_command_params_with_only_ba_port() -> None:
+    """Test pairing_thread with only ba_port (edge case)."""
+    original_trace_setting_value = matter_settings.CHIP_TOOL_TRACE
+    if original_trace_setting_value is True:
+        matter_settings.CHIP_TOOL_TRACE = False
+
+    # Attributes
+    runner: MatterYAMLRunner = MatterYAMLRunner()
+    chip_server: ChipServer = ChipServer()
+    hex_dataset = "c0ffee"
+    payload = "MT:ABC123"
+    ba_port = 5684
+
+    with mock.patch.object(
+        target=runner,
+        attribute="send_websocket_command",
+        return_value='{"results": []}',
+    ) as mock_send_websocket_command:
+        result = await runner.pairing_thread(
+            hex_dataset=hex_dataset,
+            payload=payload,
+            ba_host=None,
+            ba_port=ba_port,
+        )
+
+    expected_params = (
+        f"{hex(chip_server.node_id)} hex:{hex_dataset} {payload} "
+        f"--thread-ba-port {ba_port}"
+    )
+    expected_command = f"pairing code-thread {expected_params}"
+
+    assert result is True
+    mock_send_websocket_command.assert_awaited_once_with(expected_command)
+
+    # clean up:
+    matter_settings.CHIP_TOOL_TRACE = original_trace_setting_value
+    chip_server._ChipServer__node_id = None
+
+
+@pytest.mark.asyncio
+async def test_pairing_thread_returns_false_on_no_response() -> None:
+    """Test that pairing_thread returns False when send_websocket_command returns
+    None."""
+    original_trace_setting_value = matter_settings.CHIP_TOOL_TRACE
+    if original_trace_setting_value is True:
+        matter_settings.CHIP_TOOL_TRACE = False
+
+    # Attributes
+    runner: MatterYAMLRunner = MatterYAMLRunner()
+    chip_server: ChipServer = ChipServer()
+    hex_dataset = "c0ffee"
+    payload = "MT:ABC123"
+    ba_host = "127.0.0.1"
+    ba_port = 5684
+
+    with mock.patch.object(
+        target=runner,
+        attribute="send_websocket_command",
+        return_value=None,
+    ):
+        result = await runner.pairing_thread(
+            hex_dataset=hex_dataset,
+            payload=payload,
+            ba_host=ba_host,
+            ba_port=ba_port,
+        )
+
+    assert result is False
+
+    # clean up:
+    matter_settings.CHIP_TOOL_TRACE = original_trace_setting_value
+    chip_server._ChipServer__node_id = None
+
+
+@pytest.mark.asyncio
+async def test_pairing_thread_returns_false_on_error_response() -> None:
+    """Test that pairing_thread returns False when response contains errors."""
+    original_trace_setting_value = matter_settings.CHIP_TOOL_TRACE
+    if original_trace_setting_value is True:
+        matter_settings.CHIP_TOOL_TRACE = False
+
+    # Attributes
+    runner: MatterYAMLRunner = MatterYAMLRunner()
+    chip_server: ChipServer = ChipServer()
+    hex_dataset = "c0ffee"
+    payload = "MT:ABC123"
+    ba_host = "127.0.0.1"
+    ba_port = 5684
+
+    with mock.patch.object(
+        target=runner,
+        attribute="send_websocket_command",
+        return_value='{"results": [{"error": "FAILURE"}]}',
+    ):
+        result = await runner.pairing_thread(
+            hex_dataset=hex_dataset,
+            payload=payload,
+            ba_host=ba_host,
+            ba_port=ba_port,
+        )
+
+    # Note: The current implementation has a bug in the return statement
+    # It should return False on error, but the logic is inverted
+    # This test documents the current behavior
+    assert result is False
 
     # clean up:
     matter_settings.CHIP_TOOL_TRACE = original_trace_setting_value

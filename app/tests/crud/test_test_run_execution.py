@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Project CHIP Authors
+# Copyright (c) 2025 Project CHIP Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
 from app.crud.crud_test_run_execution import ImportError
-from app.models.test_enums import TestStateEnum
+from app.models import TestStateEnum
 from app.schemas.test_run_config import TestRunConfigCreate
 from app.schemas.test_run_execution import (
     TestRunExecutionCreate,
@@ -809,3 +809,79 @@ def test_import_execution_success_without_test_config() -> None:
         assert imported_test_run.project_id == project_id
         assert imported_test_run.title == test_run_execution_dict.get("title")
         assert imported_test_run.operator_id == operator_id
+
+
+def test_get_test_run_executions_sort_order(db: Session) -> None:
+    """Test that sort_order parameter correctly orders test run executions by id."""
+    project = create_random_project(db, config={})
+
+    # Create multiple test run executions
+    test_runs = []
+    for i in range(3):
+        test_run = create_random_test_run_execution(db, project_id=project.id)
+        test_runs.append(test_run)
+
+    # Test ascending order (default)
+    test_run_executions_asc = crud.test_run_execution.get_multi_with_stats(
+        db, project_id=project.id, sort_order="asc"
+    )
+
+    # Test descending order
+    test_run_executions_desc = crud.test_run_execution.get_multi_with_stats(
+        db, project_id=project.id, sort_order="desc"
+    )
+
+    # Get the IDs of our created test runs
+    created_ids = [tr.id for tr in test_runs]
+
+    # Filter to only our test runs for verification
+    asc_our_runs = [tre for tre in test_run_executions_asc if tre.id in created_ids]
+    desc_our_runs = [tre for tre in test_run_executions_desc if tre.id in created_ids]
+
+    # Verify ascending order
+    asc_ids = [tr.id for tr in asc_our_runs]
+    assert asc_ids == sorted(created_ids)
+
+    # Verify descending order
+    desc_ids = [tr.id for tr in desc_our_runs]
+    assert desc_ids == sorted(created_ids, reverse=True)
+
+    # Verify the orders are actually different (reversed)
+    assert asc_ids == list(reversed(desc_ids))
+
+    # Verify we have all test runs
+    assert len(asc_ids) == 3
+    assert len(desc_ids) == 3
+
+
+def test_get_test_run_executions_limit_zero_returns_all(db: Session) -> None:
+    """Test that limit=0 returns all test run executions without applying limit."""
+    project = create_random_project(db, config={})
+
+    # Create several test runs to ensure we have multiple records
+    test_runs = []
+    for i in range(5):
+        test_run = create_random_test_run_execution(db, project_id=project.id)
+        test_runs.append(test_run)
+
+    db.commit()
+
+    # Test with default limit (should be limited to 2)
+    limited_results = crud.test_run_execution.get_multi_with_stats(
+        db, project_id=project.id, limit=2
+    )
+
+    # Test with limit=0 (should return all for this project)
+    all_results = crud.test_run_execution.get_multi_with_stats(
+        db, project_id=project.id, limit=0
+    )
+
+    # Verify that limit=0 returns more results than the limited query
+    assert len(all_results) > len(limited_results)
+    assert len(limited_results) == 2  # Verify limited query worked
+    assert len(all_results) >= 5  # Should have at least our 5 test runs
+
+    # Verify all our created test runs are in the unlimited results
+    created_ids = {tr.id for tr in test_runs}
+    result_ids = {tr.id for tr in all_results}
+    assert created_ids.issubset(result_ids)

@@ -277,6 +277,7 @@ class PerformanceTestCase(TestCase, UserPromptSupport):
                 prefix=EXECUTABLE,
                 is_stream=False,
                 is_socket=False,
+                is_detach=True,
             )
 
             while ((update := test_runner_hooks.update_test()) is not None) or (
