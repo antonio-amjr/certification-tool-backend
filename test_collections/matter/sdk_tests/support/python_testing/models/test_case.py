@@ -21,6 +21,7 @@ from pathlib import Path
 from socket import SocketIO
 from typing import Any, Optional, Type, TypeVar
 
+from app.core.config import settings
 from app.models import TestCaseExecution
 from app.test_engine.logger import PYTHON_TEST_LEVEL
 from app.test_engine.logger import test_engine_logger as logger
@@ -51,6 +52,7 @@ from .python_testing_hooks_proxy import (
 from .utils import (
     EXECUTABLE,
     RUNNER_CLASS_PATH,
+    TEST_OUTPUT_FILE_PATH,
     DUTCommissioningError,
     PromptOption,
     commission_device,
@@ -60,6 +62,10 @@ from .utils import (
 
 # Timeout for user prompts in seconds.
 USER_PROMPT_TIMEOUT = 120
+
+# Log batching configuration
+LOG_BATCH_SIZE = 50  # Number of log lines to send per batch
+LOG_BATCH_DELAY = 0.01  # Delay in seconds between batches (10ms)
 
 # Custom type variable used to annotate the factory method in PythonTestCase.
 T = TypeVar("T", bound="PythonTestCase")
@@ -89,6 +95,12 @@ class PythonTestCase(TestCase, UserPromptSupport):
         self.__runned = 0
         self.test_stop_called = False
         self.test_socket = None
+        self.file_output_path: Optional[Path] = None
+        self.current_python_step_number = 0
+        self._cached_file_content: str = ""
+        self._last_file_size: int = 0
+        self._last_logged_position: int = 0  # Track last logged position
+        self._remaining_content_logged: bool = False
 
     # Move to the next step if the test case has additional steps apart from the 2
     # deafult ones
@@ -125,14 +137,136 @@ class PythonTestCase(TestCase, UserPromptSupport):
             self.current_test_step.mark_as_not_applicable(skiped_msg)
 
     def step_start(self, name: str) -> None:
+        self.current_python_step_number += 1
         self.step_over()
 
-    def step_success(self, logger: Any, logs: str, duration: int, request: Any) -> None:
-        pass
+    async def step_success(
+        self, logger: Any, logs: str, duration: int, request: Any
+    ) -> None:
+        # Display logs captured during this step only if real-time logging is enabled
+        if settings.ENABLE_REALTIME_PYTHON_TEST_LOGS:
+            await self._display_step_logs()
 
-    def step_failure(
+    async def _display_step_logs(self) -> None:
+        """Display logs that were captured during the current step."""
+        # Validate file path is set and file exists
+        if not self.file_output_path:
+            logger.debug("Test output file not found, skipping log display")
+            return
+
+        if not self.file_output_path.exists():
+            logger.debug(f"Test output file does not exist: {self.file_output_path}")
+            return
+
+        try:
+            # Read file content with incremental caching for performance
+            content = self._read_file_incrementally()
+
+            # Extract logs for the current step (returns tuple of logs and end position)
+            step_logs, end_pos = self._extract_logs_for_step(
+                content, self.current_python_step_number
+            )
+
+            if step_logs:
+                # Send logs in batches to avoid overwhelming the UI
+                for i in range(0, len(step_logs), LOG_BATCH_SIZE):
+                    batch = step_logs[i : i + LOG_BATCH_SIZE]
+                    for line in batch:
+                        logger.log(PYTHON_TEST_LEVEL, line)
+                    # Small delay between batches to allow UI to process
+                    if i + LOG_BATCH_SIZE < len(step_logs):
+                        await sleep(LOG_BATCH_DELAY)
+
+                # Update last logged position with the end position from extraction
+                if end_pos > self._last_logged_position:
+                    self._last_logged_position = end_pos
+
+        except (IOError, OSError) as e:
+            logger.warning(f"Failed to read test output file: {e}")
+        except Exception as e:
+            logger.error(
+                f"Unexpected error while displaying step logs: {e}", exc_info=True
+            )
+
+    def _read_file_incrementally(self) -> str:
+        """Read file incrementally, caching content to avoid re-reading entire file.
+
+        Returns:
+            Full content of the file up to current position
+        """
+        # Validate file path is set
+        if not self.file_output_path:
+            return self._cached_file_content
+
+        try:
+            current_size = self.file_output_path.stat().st_size
+
+            # If file hasn't grown, return cached content
+            if current_size == self._last_file_size and self._cached_file_content:
+                return self._cached_file_content
+
+            # File has grown, read only new content
+            if current_size > self._last_file_size and self._cached_file_content:
+                with open(self.file_output_path, "r", encoding="utf-8") as f:
+                    f.seek(self._last_file_size)
+                    new_content = f.read()
+                    self._cached_file_content += new_content
+            else:
+                # First read or file was truncated
+                with open(self.file_output_path, "r", encoding="utf-8") as f:
+                    self._cached_file_content = f.read()
+
+            self._last_file_size = current_size
+            return self._cached_file_content
+
+        except (IOError, OSError):
+            return self._cached_file_content
+
+    def _extract_logs_for_step(
+        self, content: str, step_number: int
+    ) -> tuple[list[str], int]:
+        """Extract logs for a specific test step from the full log content.
+
+        Args:
+            content: Full content of the test output file
+            step_number: The step number to extract logs for
+
+        Returns:
+            Tuple of:
+            - list of log lines for the specified step.
+            - End position of step content
+        """
+        current_step_marker = f"***** Test Step {step_number} :"
+        next_step_marker = f"***** Test Step {step_number + 1} :"
+
+        # Find the start position of current step
+        start_idx = content.find(current_step_marker)
+        if start_idx == -1:
+            return ([], 0)
+
+        # Find the start position of next step
+        next_idx = content.find(next_step_marker, start_idx)
+
+        # Extract the section between current and next step
+        if next_idx != -1:
+            step_content = content[start_idx:next_idx]
+            end_pos = next_idx
+        else:
+            # Last step, extract until end of content
+            step_content = content[start_idx:]
+            end_pos = len(content)
+
+        # Split into lines and return with end position
+        return (step_content.split("\n"), end_pos)
+
+    async def step_failure(
         self, logger: Any, logs: str, duration: int, request: Any, received: Any
     ) -> None:
+        # Display logs captured during this step before marking as failure
+        # only if real-time logging is enabled
+        if settings.ENABLE_REALTIME_PYTHON_TEST_LOGS:
+            await self._display_step_logs()
+
         failure_msg = "Python test step failure"
         if logs:
             failure_msg += f": {logs}"
@@ -146,9 +280,20 @@ class PythonTestCase(TestCase, UserPromptSupport):
     async def _show_prompt_request(self, request: PromptRequest) -> None:
         user_response = await self.send_prompt_request(request)
 
-        if self.test_socket and user_response.response_str:
-            response = f"{user_response.response_str}\n".encode()
-            self.test_socket._sock.sendall(response)  # type: ignore[attr-defined]
+        if self.test_socket:
+            # Always send something to unblock the SDK's input() call.
+            # On timeout/cancel response_str is None, so fall back to default_value
+            # or an empty line — otherwise the SDK process hangs waiting on stdin.
+            reply = (
+                user_response.response_str
+                or getattr(request, "default_value", None)
+                or ""
+            )
+            self.test_socket._sock.sendall(  # type: ignore[attr-defined]
+                f"{reply}\n".encode()
+            )
+
+        self.__evaluate_user_response_for_errors(user_response)
 
     async def show_prompt(
         self,
@@ -184,13 +329,7 @@ class PythonTestCase(TestCase, UserPromptSupport):
             timeout=USER_PROMPT_TIMEOUT,
             image_hex_str=img_hex_str,
         )
-
-        user_response = await self.send_prompt_request(prompt_request)
-        self.__evaluate_user_response_for_errors(user_response)
-
-        if self.test_socket and user_response.response_str:
-            response = f"{user_response.response_str}\n".encode()
-            self.test_socket._sock.sendall(response)  # type: ignore[attr-defined]
+        await self._show_prompt_request(prompt_request)
 
     async def show_push_av_stream_prompt(self, msg: str) -> None:
         options = {
@@ -245,6 +384,11 @@ class PythonTestCase(TestCase, UserPromptSupport):
         """class factory method for PythonTestCase."""
         title = cls.__title(test.name)
         class_name = cls.__class_name(test.name)
+        custom_suffix = (
+            f"-{CUSTOM_TEST_IDENTIFIER}"
+            if python_test_version == CUSTOM_TEST_IDENTIFIER
+            else ""
+        )
 
         return type(
             class_name,
@@ -253,13 +397,9 @@ class PythonTestCase(TestCase, UserPromptSupport):
                 "python_test": test,
                 "python_test_version": python_test_version,
                 "metadata": {
-                    "public_id": (
-                        test.name
-                        if python_test_version != CUSTOM_TEST_IDENTIFIER
-                        else test.name + "-" + CUSTOM_TEST_IDENTIFIER
-                    ),
+                    "public_id": test.name + custom_suffix,
                     "version": "0.0.1",
-                    "title": title,
+                    "title": title + custom_suffix,
                     "description": test.description,
                     "mandatory": mandatory,
                 },
@@ -284,22 +424,121 @@ class PythonTestCase(TestCase, UserPromptSupport):
 
         return title
 
+    @staticmethod
+    def _get_sdk_tests_base_path() -> Path:
+        """Get the base path for SDK tests directory.
+
+        This method safely navigates the directory structure to find the sdk_tests
+        directory, handling potential changes in file organization.
+
+        Returns:
+            Path to the sdk_tests base directory
+
+        Raises:
+            FileNotFoundError: If the sdk_tests directory cannot be found
+        """
+        current_file = Path(__file__).resolve()
+
+        # Navigate up from current file to find sdk_tests directory
+        # Current structure: .../sdk_tests/support/python_testing/models/test_case.py
+        for parent in current_file.parents:
+            if parent.name == "sdk_tests":
+                return parent
+
+        # Fallback: try parents[3] for backward compatibility
+        try:
+            return Path(__file__).parents[3]
+        except IndexError:
+            raise FileNotFoundError(
+                f"Could not determine sdk_tests base path from {current_file}. "
+                "Directory structure may have changed."
+            )
+
     async def setup(self) -> None:
         logger.info("Test Setup")
 
     async def cleanup(self) -> None:
         logger.info("Test Cleanup")
+        # Log any remaining content that wasn't captured by steps
+        # only if real-time logging is enabled
+        if settings.ENABLE_REALTIME_PYTHON_TEST_LOGS:
+            await self._log_remaining_content()
+        else:
+            # Use batch logging when real-time logging is disabled
+            self.display_batch_logs()
 
-    def handle_logs_temp(self) -> None:
-        # This is a temporary workaround since Python Test are generating a
-        # big amount of log
-        sdk_tests_path = Path(Path(__file__).parents[3])
-        file_output_path = (
-            sdk_tests_path / "sdk_checkout/python_testing/test_output.txt"
-        )
-        with open(file_output_path) as f:
-            lines = f.read()
-            logger.log(PYTHON_TEST_LEVEL, lines)
+    async def _log_remaining_content(self) -> None:
+        """Log any content from the test output file that wasn't logged yet."""
+        # Check idempotency flag to prevent duplicate logging
+        if self._remaining_content_logged:
+            return
+
+        # Validate file path is set
+        if not self.file_output_path:
+            logger.debug(
+                "Test output file path not found, " "skipping remaining content logging"
+            )
+            return
+
+        if not self.file_output_path.exists():
+            logger.debug(f"Test output file does not exist: {self.file_output_path}")
+            return
+
+        try:
+            # Read the full file content
+            content = self._read_file_incrementally()
+
+            # Check if there's content after the last logged position
+            if self._last_logged_position < len(content):
+                remaining_content = content[self._last_logged_position :]
+
+                if remaining_content.strip():
+                    logger.info("---- Remaining logs not captured by steps ----")
+                    # Just log all remaining content directly
+                    logger.log(PYTHON_TEST_LEVEL, remaining_content)
+                    logger.info("---- End of remaining logs ----")
+
+            # Mark as logged to prevent duplicate calls
+            self._remaining_content_logged = True
+
+        except (IOError, OSError) as e:
+            logger.warning(f"Failed to read remaining test output: {e}")
+        except Exception as e:
+            logger.error(
+                f"Unexpected error while logging remaining content: {e}", exc_info=True
+            )
+
+    def display_batch_logs(self) -> None:
+        """Batch logging method for when real-time logging is disabled.
+
+        This method logs all test output at once after test execution completes,
+        rather than displaying logs incrementally as each step executes.
+        """
+        # Check idempotency flag to prevent duplicate logging
+        if getattr(self, "_batch_logs_displayed", False):
+            return
+
+        # Validate file path is set
+        if not self.file_output_path:
+            logger.debug("Test output file not found, skipping log display")
+            return
+
+        if not self.file_output_path.exists():
+            logger.debug(f"Test output file does not exist: {self.file_output_path}")
+            return
+
+        try:
+            logger.info("---- Start of Python test logs ----")
+            with open(self.file_output_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    logger.log(PYTHON_TEST_LEVEL, line.rstrip("\n"))
+            logger.info("---- End of Python test logs ----")
+        except (IOError, OSError) as e:
+            logger.warning(f"Failed to read test output file: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error while reading logs: {e}", exc_info=True)
+
+        setattr(self, "_batch_logs_displayed", True)
 
     async def execute(self) -> None:
         try:
@@ -345,6 +584,22 @@ class PythonTestCase(TestCase, UserPromptSupport):
             )
             self.test_socket = exec_result.socket
 
+            # Initialize file output path for step-by-step log capture
+            try:
+                sdk_tests_path = self._get_sdk_tests_base_path()
+                self.file_output_path = sdk_tests_path / TEST_OUTPUT_FILE_PATH
+
+                # Validate that the output directory exists
+                output_dir = self.file_output_path.parent
+                if not output_dir.exists():
+                    logger.warning(
+                        f"Test output directory does not exist: {output_dir}. "
+                        "It will be created when tests run."
+                    )
+            except FileNotFoundError as e:
+                logger.error(f"Failed to initialize test output path: {e}")
+                self.file_output_path = None
+
             while ((update := test_runner_hooks.update_test()) is not None) or (
                 not test_runner_hooks.is_finished()
             ):
@@ -358,12 +613,13 @@ class PythonTestCase(TestCase, UserPromptSupport):
             if self.current_test_step_index < len(self.test_steps) - 1:
                 self.skip_to_last_step()
 
-            logger.info("---- Start of Python test logs ----")
-            self.handle_logs_temp()
-            # Uncomment line bellow when the workaround has a definitive solution
-            # handle_logs(cast(Generator, exec_result.output), logger)
-
-            logger.info("---- End of Python test logs ----")
+            # Check for any remaining logs that weren't captured by steps
+            # or show all logs if real-time logging is disabled
+            if settings.ENABLE_REALTIME_PYTHON_TEST_LOGS:
+                await self._log_remaining_content()
+            else:
+                # Use batch logging when real-time logging is disabled
+                self.display_batch_logs()
 
             self.current_test_step.mark_as_completed()
         finally:
@@ -412,18 +668,15 @@ class PythonTestCase(TestCase, UserPromptSupport):
 class NoCommissioningPythonTestCase(PythonTestCase):
     async def setup(self) -> None:
         await super().setup()
-        user_response = await prompt_for_commissioning_mode(
-            self, logger, None, self.cancel
-        )
-        if user_response == PromptOption.FAIL:
-            raise DUTCommissioningError(
-                "User chose prompt option FAILED for DUT is in Commissioning Mode"
-            )
+
+        logger.info("Setup -  No Commissioning Python Test Case")
 
 
 class LegacyPythonTestCase(PythonTestCase):
     async def setup(self) -> None:
         await super().setup()
+
+        logger.info("Setup -  Legacy Python Test Case")
 
         await self.prompt_about_commissioning()
 

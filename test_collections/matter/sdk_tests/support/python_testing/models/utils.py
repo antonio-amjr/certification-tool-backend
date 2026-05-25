@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Project CHIP Authors
+# Copyright (c) 2023-2026 Project CHIP Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,11 +16,13 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Generator, cast
 
 import loguru
 
+from app.constants.shared_constants import DutPairingModeEnum
 from app.schemas.test_environment_config import ThreadAutoConfig
 from app.test_engine.logger import PYTHON_TEST_LEVEL
 from app.user_prompt_support import UserPromptSupport
@@ -28,7 +30,6 @@ from test_collections.matter.sdk_tests.support.otbr_manager.otbr_manager import 
     ThreadBorderRouter,
 )
 from test_collections.matter.test_environment_config import (
-    DutPairingModeEnum,
     TestEnvironmentConfigMatter,
     ThreadExternalConfig,
 )
@@ -47,7 +48,22 @@ from ...utils import (
 RUNNER_CLASS_PATH = "/root/python_testing/scripts/sdk/matter_testing_infrastructure/chip/testing/test_harness_client.py"  # noqa
 EXECUTABLE = "python3"
 
+# Test output file path relative to sdk_tests directory
+TEST_OUTPUT_FILE_PATH = "sdk_checkout/python_testing/test_output.txt"
+
 TEST_PARAMETER_STORAGE_PATH_KEY = "storage-path"
+
+NFC_PAIRING_MODES = {
+    DutPairingModeEnum.NFC_WIFI.value,
+    DutPairingModeEnum.NFC_THREAD.value,
+}
+
+# Typed SDK argument flags that accept NAME:VALUE pairs and require special
+# handling to survive the container shell without mangling.
+_SPLIT_ARGS = {"json-arg", "string-arg", "int-arg", "float-arg", "bool-arg", "hex-arg"}
+
+# Characters that trigger shell brace expansion or word splitting.
+_SHELL_SPECIAL = set("{[}\"'")
 
 
 async def generate_command_arguments(
@@ -56,6 +72,7 @@ async def generate_command_arguments(
     dut_config = config.dut_config
     test_parameters = config.test_parameters
 
+    # Map TH pairing modes to SDK commissioning method names
     pairing_mode = (
         "on-network"
         if dut_config.pairing_mode == DutPairingModeEnum.ON_NETWORK
@@ -82,35 +99,68 @@ async def generate_command_arguments(
     else:
         arguments.append(f"--commissioning-method {pairing_mode}")
 
-    if pairing_mode == DutPairingModeEnum.BLE_WIFI:
+    if pairing_mode in (DutPairingModeEnum.BLE_WIFI, DutPairingModeEnum.NFC_WIFI):
         arguments.append(f"--wifi-ssid {config.network.wifi.ssid}")
         arguments.append(f"--wifi-passphrase {config.network.wifi.password}")
-    elif (
-        pairing_mode == DutPairingModeEnum.BLE_THREAD
-        or pairing_mode == DutPairingModeEnum.NFC_THREAD
+    elif pairing_mode in (
+        DutPairingModeEnum.BLE_THREAD,
+        DutPairingModeEnum.NFC_THREAD,
+        DutPairingModeEnum.THREAD_MESHCOP,
     ):
         dataset_hex = await __thread_dataset_hex(config.network.thread)
         arguments.append(f"--thread-dataset-hex {dataset_hex}")
 
-    # Retrieve arguments from test_parameters
-    if test_parameters:
-        # If manual-code or qr-code and also discriminator and passcode are provided,
-        # the test will think that we're trying to commission 2 DUTs and it will fail
-        if (
-            "manual-code" not in test_parameters.keys()
-            and "qr-code" not in test_parameters.keys()
-        ):
-            # Retrieve arguments from dut_config
-            arguments.append(f"--discriminator {dut_config.discriminator}")
-            arguments.append(f"--passcode {dut_config.setup_code}")
+        # Add Border Agent parameters for THREAD_MESHCOP
+        if pairing_mode == DutPairingModeEnum.THREAD_MESHCOP:
+            thread_config = config.network.thread
+            if thread_config.ba_host:
+                arguments.append(f"--thread-ba-host {thread_config.ba_host}")
+            if thread_config.ba_port:
+                arguments.append(f"--thread-ba-port {thread_config.ba_port}")
 
-        for name, value in test_parameters.items():
-            arg_value = str(value) if value is not None else ""
-            arguments.append(f"--{name} {arg_value}")
-    else:
+    # NFC pairing modes don't need discriminator and passcode in the arguments,
+    # since it is provided directly by the NFC tag.
+    # Also, if manual-code or qr-code and also discriminator and passcode are provided,
+    # the test will think that we're trying to commission 2 DUTs and it will fail
+    if (
+        pairing_mode not in NFC_PAIRING_MODES
+        and ("manual-code" not in test_parameters.keys() if test_parameters else True)
+        and ("qr-code" not in test_parameters.keys() if test_parameters else True)
+    ):
         # Retrieve arguments from dut_config
         arguments.append(f"--discriminator {dut_config.discriminator}")
         arguments.append(f"--passcode {dut_config.setup_code}")
+
+    # Retrieve arguments from test_parameters.
+    # Typed SDK args (--json-arg, --string-arg, etc.) may contain special
+    # characters such as braces and quotes that the container shell would
+    # mangle if embedded in a single string token.
+    # Emit the flag and each NAME:VALUE pair as separate list entries.
+    # Single-quote pairs that contain shell-special characters so the
+    # container shell does not perform brace expansion or word splitting.
+    # json-arg is always a single NAME:JSON token — never split on spaces,
+    # as the JSON value itself may contain spaces.
+    # Other typed args (int-arg, string-arg, etc.) use plain NAME:VALUE pairs
+    # with no spaces, so splitting on spaces is safe for them.
+    if test_parameters:
+        for name, value in test_parameters.items():
+            if isinstance(value, (dict, list)):
+                arg_value = json.dumps(value, separators=(",", ":"))
+            elif value is not None:
+                arg_value = str(value)
+            else:
+                arg_value = ""
+            if name in _SPLIT_ARGS:
+                arguments.append(f"--{name}")
+                pairs = [arg_value] if name == "json-arg" else arg_value.split(" ")
+                for pair in pairs:
+                    if pair:
+                        if any(c in pair for c in _SHELL_SPECIAL):
+                            arguments.append(f"'{pair}'")
+                        else:
+                            arguments.append(pair)
+            else:
+                arguments.append(f"--{name} {arg_value}")
 
     return arguments
 
@@ -157,13 +207,38 @@ def __copy_admin_storage_file(
     )
 
 
+def log_test_output_file(logger: loguru.Logger) -> None:
+    """Log the entire content of test_output.txt file.
+
+    Args:
+        logger: Logger instance to write logs to
+    """
+    try:
+        # Navigate up 3 levels from utils.py to sdk_tests directory
+        sdk_tests_path = next(
+            (p for p in Path(__file__).resolve().parents if p.name == "sdk_tests"),
+            Path(__file__).parents[3],
+        )
+        file_output_path = sdk_tests_path / TEST_OUTPUT_FILE_PATH
+
+        if file_output_path.exists():
+            with open(file_output_path, "r") as f:
+                content = f.read()
+                if content.strip():  # Only log if there's actual content
+                    logger.log(PYTHON_TEST_LEVEL, content)
+        else:
+            logger.debug(f"test_output.txt not found at {file_output_path}")
+    except (OSError, IndexError) as e:
+        logger.warning(f"Could not read test_output.txt: {e}")
+
+
 async def commission_device(
     config: TestEnvironmentConfigMatter,
     logger: loguru.Logger,
 ) -> None:
     sdk_container = SDKContainer(logger)
 
-    command = [f"{RUNNER_CLASS_PATH} commission"]
+    command = [f"{RUNNER_CLASS_PATH} --commission"]
     command_arguments = await generate_command_arguments(config)
     command.extend(command_arguments)
 
@@ -180,6 +255,11 @@ async def commission_device(
 
     if exit_code:
         raise DUTCommissioningError("Failed to commission DUT")
+
+    # Print all content from test_output.txt file after commissioning
+    logger.info("---- Start of commissioning test output ----")
+    log_test_output_file(logger)
+    logger.info("---- End of commissioning test output ----")
 
     # Copy admin_storage.json file from container, in case the user wants to
     # reuse this information in the next execution

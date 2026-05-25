@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Project CHIP Authors
+# Copyright (c) 2025-2026 Project CHIP Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #
 from typing import Optional
 
+from app.constants.shared_constants import DutPairingModeEnum
 from app.models import TestSuiteExecution
 from app.test_engine.logger import test_engine_logger as logger
 from app.test_engine.models import TestSuite
@@ -24,7 +25,6 @@ from test_collections.matter.sdk_tests.support.otbr_manager.otbr_manager import 
     ThreadBorderRouter,
 )
 from test_collections.matter.test_environment_config import (
-    DutPairingModeEnum,
     TestEnvironmentConfigMatter,
     ThreadAutoConfig,
     ThreadExternalConfig,
@@ -71,10 +71,8 @@ class ChipSuite(TestSuite, UserPromptSupport):
         logger.info("Setting up SDK container")
         await self.sdk_container.start()
 
-        if self.config_matter.dut_config.pairing_mode is DutPairingModeEnum.NFC_THREAD:
-            # When PCSC reader is used in a Docker container, pollkit should
-            #  be disabled
-            self.sdk_container.send_command("--disable-polkit", prefix="pcscd")
+        # pcscd is required for NFC reader access regardless of pairing mode
+        self.sdk_container.send_command("--disable-polkit", prefix="pcscd")
 
         logger.info("Setting up test runner")
         await self.runner.setup(
@@ -121,7 +119,9 @@ class ChipSuite(TestSuite, UserPromptSupport):
         if self.config_matter.dut_config.pairing_mode is DutPairingModeEnum.ON_NETWORK:
             pair_result = await self.__pair_with_dut_onnetwork()
         elif self.config_matter.dut_config.pairing_mode is DutPairingModeEnum.BLE_WIFI:
-            pair_result = await self.__pair_with_dut_ble_wifi()
+            pair_result = await self.__pair_wifi_dut_wifi_modes("ble")
+        elif self.config_matter.dut_config.pairing_mode is DutPairingModeEnum.NFC_WIFI:
+            pair_result = await self.__pair_wifi_dut_wifi_modes("nfc")
         elif (
             self.config_matter.dut_config.pairing_mode is DutPairingModeEnum.BLE_THREAD
         ):
@@ -134,7 +134,12 @@ class ChipSuite(TestSuite, UserPromptSupport):
             self.config_matter.dut_config.pairing_mode
             is DutPairingModeEnum.WIFIPAF_WIFI
         ):
-            pair_result = await self.__pair_with_dut_wifipaf_wifi()
+            pair_result = await self.__pair_wifi_dut_wifi_modes("wifipaf")
+        elif (
+            self.config_matter.dut_config.pairing_mode
+            is DutPairingModeEnum.THREAD_MESHCOP
+        ):
+            pair_result = await self.__pair_with_dut_thread()
         else:
             raise DUTCommissioningError("Unsupported DUT pairing mode")
 
@@ -147,22 +152,12 @@ class ChipSuite(TestSuite, UserPromptSupport):
             discriminator=self.config_matter.dut_config.discriminator,
         )
 
-    async def __pair_with_dut_ble_wifi(self) -> bool:
+    async def __pair_wifi_dut_wifi_modes(self, mode: str) -> bool:
         if self.config_matter.network.wifi is None:
             raise DUTCommissioningError("Tool config is missing wifi config.")
 
-        return await self.runner.pairing_ble_wifi(
-            ssid=self.config_matter.network.wifi.ssid,
-            password=self.config_matter.network.wifi.password,
-            setup_code=self.config_matter.dut_config.setup_code,
-            discriminator=self.config_matter.dut_config.discriminator,
-        )
-
-    async def __pair_with_dut_wifipaf_wifi(self) -> bool:
-        if self.config_matter.network.wifi is None:
-            raise DUTCommissioningError("Tool config is missing wifi config.")
-
-        return await self.runner.pairing_wifipaf_wifi(
+        pairing_function = getattr(self.runner, f"pairing_{mode}_wifi")
+        return await pairing_function(
             ssid=self.config_matter.network.wifi.ssid,
             password=self.config_matter.network.wifi.password,
             setup_code=self.config_matter.dut_config.setup_code,
@@ -207,6 +202,38 @@ class ChipSuite(TestSuite, UserPromptSupport):
             hex_dataset=hex_dataset,
             setup_code=self.config_matter.dut_config.setup_code,
             discriminator=self.config_matter.dut_config.discriminator,
+        )
+
+    async def __pair_with_dut_thread(self) -> bool:
+        """Commission DUT using thread pairing mode with Border Agent."""
+        if self.config_matter.network.thread is None:
+            raise DUTCommissioningError("Tool config is missing thread config.")
+
+        # Get thread configuration
+        thread_config = self.config_matter.network.thread
+        if isinstance(thread_config, ThreadExternalConfig):
+            hex_dataset = thread_config.operational_dataset_hex
+            ba_host = thread_config.ba_host
+            ba_port = thread_config.ba_port
+        elif isinstance(thread_config, ThreadAutoConfig):
+            border_router = await self.__start_border_router(thread_config)
+            hex_dataset = border_router.active_dataset
+            ba_host = thread_config.ba_host
+            ba_port = thread_config.ba_port
+        else:
+            raise DUTCommissioningError("Invalid thread configuration")
+
+        # Generate manual pairing code from discriminator and setup code
+        payload = self.runner.chip_server.generate_manual_pairing_code_with_chip_tool(
+            discriminator=self.config_matter.dut_config.discriminator,
+            setup_pin_code=self.config_matter.dut_config.setup_code,
+        )
+
+        return await self.runner.pairing_thread(
+            hex_dataset=hex_dataset,
+            payload=payload,
+            ba_host=ba_host,
+            ba_port=ba_port,
         )
 
     async def __start_border_router(

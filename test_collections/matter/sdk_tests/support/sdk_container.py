@@ -22,6 +22,11 @@ import loguru
 from docker.models.containers import Container
 
 from app.container_manager import container_manager
+from app.container_manager.docker_shell_commands import (
+    SHELL_CMD_LOG_PREFIX,
+    docker_exec_command,
+)
+from app.core.config import settings
 from app.schemas.pics import PICS, PICSError
 from app.singleton import Singleton
 from app.test_engine.logger import test_engine_logger as logger
@@ -135,6 +140,18 @@ class SDKContainer(metaclass=Singleton):
                 "bind": DOCKER_RPC_PYTHON_TESTING_PATH,
                 "mode": "rw",
             },
+            LOCAL_STRESS_TEST_SCRIPT_PATH: {
+                "bind": DOCKER_STRESS_TEST_SCRIPT_PATH,
+                "mode": "rw",
+            },
+            LOCAL_STRESS_TEST_ACCESSORY_MANAGER_SCRIPT_PATH: {
+                "bind": DOCKER_STRESS_TEST_ACCESSORY_MANAGER_SCRIPT_PATH,
+                "mode": "rw",
+            },
+            LOCAL_STRESS_TEST_SIMULATED_ACCESSORY_SCRIPT_PATH: {
+                "bind": DOCKER_STRESS_TEST_SIMULATED_ACCESSORY_SCRIPT_PATH,
+                "mode": "rw",
+            },
         },
     }
 
@@ -208,6 +225,7 @@ class SDKContainer(metaclass=Singleton):
         prefix: str,
         is_stream: bool = False,
         is_socket: bool = False,
+        is_detach: bool = False,
     ) -> ExecResultExtended:
         if self.__container is None:
             raise SDKContainerNotRunning()
@@ -218,14 +236,26 @@ class SDKContainer(metaclass=Singleton):
         else:
             full_cmd.append(str(command))
 
-        self.logger.info("Sending command to SDK container: " + " ".join(full_cmd))
+        full_cmd_str = " ".join(full_cmd)
+        self.logger.info("Sending command to SDK container: " + full_cmd_str)
+
+        # Log equivalent shell command
+        if settings.ENABLE_CONTAINER_LOGS:
+            shell_cmd = docker_exec_command(
+                self.container_name,
+                full_cmd_str,
+                stdin=True,
+                detach=is_detach,
+            )
+            self.logger.info(f"{SHELL_CMD_LOG_PREFIX}{shell_cmd}")
 
         result = exec_run_in_container(
             self.__container,
-            " ".join(full_cmd),
+            full_cmd_str,
             socket=is_socket,
             stream=is_stream,
             stdin=True,
+            detach=is_detach,
         )
 
         return result

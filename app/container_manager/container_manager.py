@@ -23,9 +23,18 @@ from typing import Dict, Optional
 import docker
 from docker.errors import DockerException, NotFound
 from docker.models.containers import Container
-from loguru import logger
 
+from app.container_manager.docker_shell_commands import (
+    SHELL_CMD_LOG_PREFIX,
+    docker_cp_from_container_command,
+    docker_cp_to_container_command,
+    docker_kill_command,
+    docker_rm_command,
+    docker_run_command,
+)
+from app.core.config import settings
 from app.singleton import Singleton
+from app.test_engine.logger import test_engine_logger as logger
 
 # Note: Can we use a base docker image and single RPC process(OR a Bash script) entry
 # point to later configure the image to be a particular type
@@ -41,13 +50,23 @@ class ContainerManager(object, metaclass=Singleton):
     ) -> Container:
         container = self.__run_new_container(docker_image_tag, parameters)
         await self.__container_ready(container)
-        logger.info("Container running for " + docker_image_tag)
+        if settings.ENABLE_CONTAINER_LOGS:
+            logger.info(f"Container running for {docker_image_tag}")
 
         return container
 
     def destroy(self, container: Container) -> None:
         if self.is_running(container):
+            # Log equivalent shell command for kill
+            if settings.ENABLE_CONTAINER_LOGS:
+                shell_cmd = docker_kill_command(container.name)
+                logger.info(f"{SHELL_CMD_LOG_PREFIX}{shell_cmd}")
             container.kill()
+
+        # Log equivalent shell command for remove
+        if settings.ENABLE_CONTAINER_LOGS:
+            shell_cmd = docker_rm_command(container.name, force=True)
+            logger.info(f"{SHELL_CMD_LOG_PREFIX}{shell_cmd}")
         container.remove(force=True)
 
     def get_container(self, id_or_name: str) -> Optional[Container]:
@@ -93,6 +112,11 @@ class ContainerManager(object, metaclass=Singleton):
     def __run_new_container(self, docker_image_tag: str, parameters: Dict) -> Container:
         # Create containers
         try:
+            # Log equivalent shell command
+            if settings.ENABLE_CONTAINER_LOGS:
+                shell_cmd = docker_run_command(docker_image_tag, parameters)
+                logger.info(f"{SHELL_CMD_LOG_PREFIX}{shell_cmd}")
+
             return self.__client.containers.run(docker_image_tag, **parameters)
         except DockerException as error:
             logger.error(
@@ -132,12 +156,21 @@ class ContainerManager(object, metaclass=Singleton):
         destination_file_name: str,
     ) -> None:
         try:
-            logger.info(
-                "### File Copy: CONTAINER->HOST"
-                f" From Container Path: {str(container_file_path)}"
-                f" To Host Path: {str(destination_path)}/{destination_file_name}"
-                f" Container Name: {str(container.name)}"
-            )
+            if settings.ENABLE_CONTAINER_LOGS:
+                logger.info(
+                    "### File Copy: CONTAINER->HOST"
+                    f" From Container Path: {str(container_file_path)}"
+                    f" To Host Path: {str(destination_path)}/{destination_file_name}"
+                    f" Container Name: {str(container.name)}"
+                )
+
+                shell_cmd = docker_cp_from_container_command(
+                    container.name,
+                    container_file_path,
+                    destination_path / destination_file_name,
+                )
+                logger.info(f"{SHELL_CMD_LOG_PREFIX}{shell_cmd}")
+
             stream, _ = container.get_archive(str(container_file_path))
             with open(
                 f"{str(destination_path)}/{destination_file_name}",
@@ -159,12 +192,18 @@ class ContainerManager(object, metaclass=Singleton):
         destination_container_path: Path,
     ) -> None:
         try:
-            logger.info(
-                "### File Copy: HOST->CONTAINER"
-                f" From Host Path: {str(host_file_path)}"
-                f" To Container Path: {destination_container_path}"
-                f" Container Name: {str(container.name)}"
-            )
+            if settings.ENABLE_CONTAINER_LOGS:
+                logger.info(
+                    "### File Copy: HOST->CONTAINER"
+                    f" From Host Path: {str(host_file_path)}"
+                    f" To Container Path: {destination_container_path}"
+                    f" Container Name: {str(container.name)}"
+                )
+
+                shell_cmd = docker_cp_to_container_command(
+                    container.name, host_file_path, destination_container_path
+                )
+                logger.info(f"{SHELL_CMD_LOG_PREFIX}{shell_cmd}")
 
             tar_stream = io.BytesIO()
             with tarfile.open(f"{host_file_path}", mode="r") as tar_in:

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Project CHIP Authors
+# Copyright (c) 2025-2026 Project CHIP Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,24 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from enum import Enum
 from typing import Optional, Union
 
 from pydantic import BaseModel
 
+from app.constants.shared_constants import DutPairingModeEnum
 from app.schemas.test_environment_config import TestEnvironmentConfig, ThreadAutoConfig
 
 
 class TestEnvironmentConfigMatterError(Exception):
     """Raised when the validation for the matter config fails"""
-
-
-class DutPairingModeEnum(str, Enum):
-    ON_NETWORK = "onnetwork"
-    BLE_WIFI = "ble-wifi"
-    BLE_THREAD = "ble-thread"
-    WIFIPAF_WIFI = "wifipaf-wifi"
-    NFC_THREAD = "nfc-thread"
 
 
 class WiFiConfig(BaseModel):
@@ -40,6 +32,8 @@ class WiFiConfig(BaseModel):
 
 class ThreadExternalConfig(BaseModel):
     operational_dataset_hex: str
+    ba_host: Optional[str] = None
+    ba_port: Optional[int] = None
 
 
 class NetworkConfig(BaseModel):
@@ -108,8 +102,33 @@ class TestEnvironmentConfigMatter(TestEnvironmentConfig):
             mandatory_fields = valid_properties.copy()
             mandatory_fields.remove("chip_timeout")
             mandatory_fields.remove("enhanced_setup_flow")
+
             for field in mandatory_fields:
                 if field not in dut_config:
                     raise TestEnvironmentConfigMatterError(
                         f"The field {field} is required for dut_config configuration"
+                    )
+
+            # Validate THREAD_MESHCOP mode requires ba_host and ba_port
+            pairing_mode = dut_config.get("pairing_mode")
+            if pairing_mode == DutPairingModeEnum.THREAD_MESHCOP:
+                thread_config = network.get("thread") if network else None
+                if not thread_config:
+                    raise TestEnvironmentConfigMatterError(
+                        "Thread configuration is required for THREAD_MESHCOP pairing"
+                        " mode"
+                    )
+
+                # Check if thread config is a dict or object
+                if isinstance(thread_config, dict):
+                    ba_host = thread_config.get("ba_host")
+                    ba_port = thread_config.get("ba_port")
+                else:
+                    ba_host = getattr(thread_config, "ba_host", None)
+                    ba_port = getattr(thread_config, "ba_port", None)
+
+                if not ba_host or not ba_port:
+                    raise TestEnvironmentConfigMatterError(
+                        "ba_host and ba_port are mandatories in thread configuration "
+                        "when pairing_mode is THREAD_MESHCOP"
                     )

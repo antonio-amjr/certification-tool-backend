@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Project CHIP Authors
+# Copyright (c) 2023-2026 Project CHIP Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +14,9 @@
 # limitations under the License.
 #
 from asyncio import CancelledError, Task, create_task
-from typing import List, Optional
 
-from app.models import Project, TestRunExecution
-from app.models.test_enums import TestStateEnum
+from app.models import Project, TestRunExecution, TestStateEnum
+from app.schemas.pics import PICS
 from app.schemas.test_run_log_entry import TestRunLogEntry
 from app.test_engine.logger import test_engine_logger as logger
 from app.test_engine.test_observable import TestObservable
@@ -38,10 +37,10 @@ class TestRun(TestObservable, UserPromptSupport):
     def __init__(self, test_run_execution: TestRunExecution):
         super().__init__()
         self.test_run_execution = test_run_execution
-        self.current_test_suite: Optional[TestSuite] = None
-        self.test_suites: List[TestSuite] = []
+        self.current_test_suite: TestSuite | None = None
+        self.test_suites: list[TestSuite] = []
         self.__state = TestStateEnum.PENDING
-        self.__current_testing_task: Optional[Task] = None
+        self.__current_testing_task: Task | None = None
         self.log: list[TestRunLogEntry] = []
 
     @property
@@ -55,8 +54,25 @@ class TestRun(TestObservable, UserPromptSupport):
 
     @property
     def config(self) -> dict:
-        """Convenience getter to access project config."""
+        """Convenience getter to access config.
+
+        Returns execution_config if present (temporary, per-execution config),
+        otherwise returns project.config (persistent config).
+        """
+        if self.test_run_execution.execution_config is not None:
+            return self.test_run_execution.execution_config
         return self.project.config
+
+    @property
+    def pics(self) -> PICS:
+        """Get PICS for test suite.
+
+        Returns execution_pics if available (temporary, per-execution PICS),
+        otherwise returns project.pics (persistent PICS).
+        """
+        if self.test_run_execution.execution_pics is not None:
+            return PICS.parse_obj(self.test_run_execution.execution_pics)
+        return self.project.pics
 
     @property
     def state(self) -> TestStateEnum:
@@ -169,7 +185,7 @@ class TestRun(TestObservable, UserPromptSupport):
         self.log.extend(entries)
         self.notify()
 
-    def subscribe(self, observers: List[Observer]) -> None:
+    def subscribe(self, observers: list[Observer]) -> None:
         """Subscribe a list of observers to test run changes, and changes on sub-models
         test suites, test cases, and test steps.
 
@@ -179,7 +195,7 @@ class TestRun(TestObservable, UserPromptSupport):
         super().subscribe(observers)
         self.__subscribe_test_suites(observers)
 
-    def __subscribe_test_suites(self, observers: List[Observer]) -> None:
+    def __subscribe_test_suites(self, observers: list[Observer]) -> None:
         """Subscribe sub-models to observers
 
         Args:
@@ -188,7 +204,7 @@ class TestRun(TestObservable, UserPromptSupport):
         for test_suite in self.test_suites:
             test_suite.subscribe(observers)
 
-    def unsubscribe(self, observers: List[Observer]) -> None:
+    def unsubscribe(self, observers: list[Observer]) -> None:
         """Unsubscribe observers from changes to test run changes, and sub-models
         test suites, test cases, and test steps.
 
@@ -198,7 +214,7 @@ class TestRun(TestObservable, UserPromptSupport):
         super().unsubscribe(observers)
         self.__unsubscribe_test_suites(observers)
 
-    def __unsubscribe_test_suites(self, observers: List[Observer]) -> None:
+    def __unsubscribe_test_suites(self, observers: list[Observer]) -> None:
         """Unsubscribe sub-models to observers
 
         Args:

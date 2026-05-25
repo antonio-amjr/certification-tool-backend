@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Project CHIP Authors
+# Copyright (c) 2026 Project CHIP Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -106,6 +106,12 @@ class Settings(BaseSettings):
     NOTIFIER_PASSWORD: str = "yntwdxwyofvehafg"  # spell-checker:disable-line
     NOTIFIER_TO: str = "xiole.chip.test@gmail.com"
     NOTIFIER_SUBJECT: str = "CHIP Tool Crash Log"
+
+    # Python Test Logging
+    ENABLE_REALTIME_PYTHON_TEST_LOGS: bool = False
+
+    # Container Logging
+    ENABLE_CONTAINER_LOGS: bool = False
 
     class Config:
         case_sensitive = True

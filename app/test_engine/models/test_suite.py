@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Project CHIP Authors
+# Copyright (c) 2025 Project CHIP Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +16,7 @@
 from asyncio import CancelledError, sleep
 from typing import List, Optional, Type
 
-from app.models import Project, TestSuiteExecution
-from app.models.test_enums import TestStateEnum
+from app.models import Project, TestStateEnum, TestSuiteExecution
 from app.schemas.pics import PICS
 from app.test_engine.logger import test_engine_logger as logger
 from app.test_engine.models.utils import LogSeparator
@@ -59,10 +58,26 @@ class TestSuite(TestObservable):
 
     @property
     def config(self) -> dict:
+        """Get configuration for test suite.
+
+        Returns execution_config if available (temporary override from CLI),
+        otherwise returns project.config (persistent configuration).
+        """
+        test_run_execution = self.test_suite_execution.test_run_execution
+        if test_run_execution.execution_config is not None:
+            return test_run_execution.execution_config
         return self.project.config
 
     @property
     def pics(self) -> PICS:
+        """Get PICS for test suite.
+
+        Returns execution_pics if available (temporary override from CLI),
+        otherwise returns project.pics (persistent PICS).
+        """
+        test_run_execution = self.test_suite_execution.test_run_execution
+        if test_run_execution.execution_pics is not None:
+            return PICS.parse_obj(test_run_execution.execution_pics)
         return PICS.parse_obj(self.project.pics)
 
     @property
@@ -77,7 +92,7 @@ class TestSuite(TestObservable):
 
     def __compute_state(self) -> TestStateEnum:
         """
-        State is computed based test_suite errors and on on test case states.
+        State is computed based on test_suite errors and test case states.
         """
         if self.errors is not None and len(self.errors) > 0:
             return TestStateEnum.ERROR
