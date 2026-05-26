@@ -382,7 +382,6 @@ async def test_pairing_on_network_command_params() -> None:
     "pairing_fn_name, pairing_cmd",
     [
         ("pairing_ble_wifi", "ble-wifi"),
-        ("pairing_nfc_wifi", "nfc-wifi"),
     ],
 )
 async def test_pairing_wifi_command_params(
@@ -417,6 +416,45 @@ async def test_pairing_wifi_command_params(
         f"{hex(chip_server.node_id)} {ssid} {password} {setup_code} {discriminator}"
     )
     expected_command = f"pairing {pairing_cmd} {expected_params}"
+
+    assert result is True
+    mock_send_websocket_command.assert_awaited_once_with(expected_command)
+
+    # clean up:
+    matter_settings.CHIP_TOOL_TRACE = original_trace_setting_value
+    chip_server._ChipServer__node_id = None
+
+
+@pytest.mark.asyncio
+async def test_pairing_nfc_wifi_command_params() -> None:
+    original_trace_setting_value = matter_settings.CHIP_TOOL_TRACE
+    if original_trace_setting_value is True:
+        matter_settings.CHIP_TOOL_TRACE = False
+
+    # Attributes
+    runner: MatterYAMLRunner = MatterYAMLRunner()
+    chip_server: ChipServer = ChipServer()
+    ssid = "WifiIsGood"
+    password = "WifiIsGoodAndSecret"
+    setup_code = "20202021"
+    discriminator = "3840"
+
+    with mock.patch.object(
+        target=runner,
+        attribute="send_websocket_command",
+        return_value='{"results": []}',
+    ) as mock_send_websocket_command:
+        result = await runner.pairing_nfc_wifi(
+            ssid=ssid,
+            password=password,
+            setup_code=setup_code,
+            discriminator=discriminator,
+        )
+
+    expected_params = (
+        f"{hex(chip_server.node_id)} {ssid} {password} {setup_code} {discriminator}"
+    )
+    expected_command = f"pairing nfc-wifi {expected_params}"
 
     assert result is True
     mock_send_websocket_command.assert_awaited_once_with(expected_command)
@@ -481,7 +519,6 @@ async def test_pairing_nfc_thread_command_params() -> None:
         target=runner,
         attribute="send_websocket_command",
         return_value='{"results": []}',
-        # '{  "results": [{ "error": "FAILURE" }]
     ) as mock_send_websocket_command:
         result = await runner.pairing_nfc_thread(
             hex_dataset=hex_dataset,
