@@ -136,7 +136,6 @@ def __configure_logging(
     logger.add(
         sys.stdout,
         enqueue=True,
-        backtrace=True,
         level=level.upper(),
         format=format,
         colorize=colorize,
@@ -148,7 +147,6 @@ def __configure_logging(
         rotation=rotation,
         retention=retention,
         enqueue=True,
-        backtrace=True,
         level=level.upper(),
         format=format,
     )

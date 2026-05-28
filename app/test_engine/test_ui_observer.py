@@ -40,9 +40,11 @@ class TestUpdateTypeEnum(str, Enum):
 
 class TestUIObserver(Observer):
     __test__ = False
-    __async_updates: list[Task] = []
-    __last_seen_run_state: Optional[TestStateEnum] = None
-    __last_seen_run_log_len = 0
+
+    def __init__(self) -> None:
+      self.__async_updates: list[Task] = []
+      self.__last_seen_run_state: Optional[TestStateEnum] = None
+      self.__last_seen_run_log_len = 0
 
     def dispatch(
         self, observable: Union[TestRun, TestSuite, TestCase, TestStep]
