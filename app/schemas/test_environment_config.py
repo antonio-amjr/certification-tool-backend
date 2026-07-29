@@ -48,11 +48,26 @@ class TestEnvironmentConfigError(Exception):
     """
 
 
+class TestHarnessConfig(BaseModel):
+    """Settings that configure the Test Harness's own behavior during test
+    execution (as opposed to `dut_config`/`network`, which describe the
+    device/network under test). Extend with additional Test Harness behavior
+    settings as needed.
+    """
+
+    user_prompt_timeout_s: Optional[int] = None
+    enable_realtime_python_test_logs: Optional[bool] = None
+
+    class Config:
+        extra = "forbid"
+
+
 class TestEnvironmentConfig(BaseModel):
     __test__ = False  # Needed to indicate to PyTest that this is not a "test"
 
     # TODO(#490): Need to be refactored to support real PIXIT format
     test_parameters: Optional[dict[str, Any]]
+    test_harness_config: Optional[TestHarnessConfig] = None
 
     def __init__(self, **kwargs: Any):
         try:

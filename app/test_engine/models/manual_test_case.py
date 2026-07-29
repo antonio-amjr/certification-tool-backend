@@ -89,7 +89,9 @@ class ManualVerificationTestStep(TestStep, UserPromptSupport):
             "FAIL": PromptOptions.FAIL,
         }
         prompt_request = StreamVerificationPromptRequest(
-            prompt=prompt, options=options, timeout=OUTCOME_TIMEOUT_S
+            prompt=prompt,
+            options=options,
+            timeout=self.resolve_prompt_timeout(OUTCOME_TIMEOUT_S),
         )
         prompt_response = await self.send_prompt_request(prompt_request)
         self.__evaluate_user_response_for_errors(prompt_response)
@@ -124,7 +126,9 @@ class ManualVerificationTestStep(TestStep, UserPromptSupport):
             "NOT APPLICABLE": PromptOptions.NOT_APPLICABLE,
         }
         prompt_request = OptionsSelectPromptRequest(
-            prompt=prompt, options=options, timeout=OUTCOME_TIMEOUT_S
+            prompt=prompt,
+            options=options,
+            timeout=self.resolve_prompt_timeout(OUTCOME_TIMEOUT_S),
         )
         prompt_response = await self.send_prompt_request(prompt_request)
         self.__evaluate_user_response_for_errors(prompt_response)
@@ -171,7 +175,7 @@ class ManualLogUploadStep(TestStep, UserPromptSupport):
         )
         prompt_request = UploadFilePromptRequest(
             prompt=prompt_title,
-            timeout=OUTCOME_TIMEOUT_S,
+            timeout=self.resolve_prompt_timeout(OUTCOME_TIMEOUT_S),
         )
         prompt_response = await self.send_prompt_request(prompt_request)
 

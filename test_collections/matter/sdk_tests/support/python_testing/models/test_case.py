@@ -22,7 +22,6 @@ from socket import SocketIO
 from typing import Any, Optional, Type, TypeVar
 
 from app.constants.shared_constants import NFC_PAIRING_MODES
-from app.core.config import settings
 from app.models import TestCaseExecution
 from app.test_engine.logger import PYTHON_TEST_LEVEL
 from app.test_engine.logger import test_engine_logger as logger
@@ -38,6 +37,7 @@ from app.user_prompt_support.prompt_request import (
     StreamVerificationPromptRequest,
     TextInputPromptRequest,
     TwoWayTalkVerificationRequest,
+    default_timeout_s,
 )
 from app.user_prompt_support.user_prompt_support import UserPromptSupport
 from test_collections.matter.test_environment_config import TestEnvironmentConfigMatter
@@ -63,6 +63,7 @@ from .utils import (
 
 # Timeout for user prompts in seconds.
 USER_PROMPT_TIMEOUT = 120
+TWO_WAY_TALK_TIMEOUT_S = 120
 
 # Log batching configuration
 LOG_BATCH_SIZE = 50  # Number of log lines to send per batch
@@ -145,8 +146,16 @@ class PythonTestCase(TestCase, UserPromptSupport):
         self, logger: Any, logs: str, duration: int, request: Any
     ) -> None:
         # Display logs captured during this step only if real-time logging is enabled
-        if settings.ENABLE_REALTIME_PYTHON_TEST_LOGS:
+        if self._realtime_logs_enabled():
             await self._display_step_logs()
+
+    def _realtime_logs_enabled(self) -> bool:
+        """Resolve test_harness_config.enable_realtime_python_test_logs from
+        project/execution config. Defaults to False (batch logging)."""
+        test_harness_config = (self.config or {}).get("test_harness_config")
+        if not isinstance(test_harness_config, dict):
+            return False
+        return test_harness_config.get("enable_realtime_python_test_logs") is True
 
     async def _display_step_logs(self) -> None:
         """Display logs that were captured during the current step."""
@@ -265,7 +274,7 @@ class PythonTestCase(TestCase, UserPromptSupport):
     ) -> None:
         # Display logs captured during this step before marking as failure
         # only if real-time logging is enabled
-        if settings.ENABLE_REALTIME_PYTHON_TEST_LOGS:
+        if self._realtime_logs_enabled():
             await self._display_step_logs()
 
         failure_msg = "Python test step failure"
@@ -306,6 +315,7 @@ class PythonTestCase(TestCase, UserPromptSupport):
             prompt=msg,
             placeholder_text=placeholder,
             default_value=default_value,
+            timeout=self.resolve_prompt_timeout(default_timeout_s),
         )
         await self._show_prompt_request(prompt_request)
 
@@ -315,7 +325,9 @@ class PythonTestCase(TestCase, UserPromptSupport):
             "FAIL": PromptOption.FAIL,
         }
         prompt_request = StreamVerificationPromptRequest(
-            prompt=msg, options=options, timeout=USER_PROMPT_TIMEOUT
+            prompt=msg,
+            options=options,
+            timeout=self.resolve_prompt_timeout(USER_PROMPT_TIMEOUT),
         )
         await self._show_prompt_request(prompt_request)
 
@@ -327,7 +339,7 @@ class PythonTestCase(TestCase, UserPromptSupport):
         prompt_request = ImageVerificationPromptRequest(
             prompt=msg,
             options=options,
-            timeout=USER_PROMPT_TIMEOUT,
+            timeout=self.resolve_prompt_timeout(USER_PROMPT_TIMEOUT),
             image_hex_str=img_hex_str,
         )
         await self._show_prompt_request(prompt_request)
@@ -338,7 +350,9 @@ class PythonTestCase(TestCase, UserPromptSupport):
             "FAIL": PromptOption.FAIL,
         }
         prompt_request = PushAVStreamVerificationRequest(
-            prompt=msg, options=options, timeout=USER_PROMPT_TIMEOUT
+            prompt=msg,
+            options=options,
+            timeout=self.resolve_prompt_timeout(USER_PROMPT_TIMEOUT),
         )
         await self._show_prompt_request(prompt_request)
 
@@ -348,7 +362,9 @@ class PythonTestCase(TestCase, UserPromptSupport):
             "FAIL": PromptOption.FAIL,
         }
         prompt_request = TwoWayTalkVerificationRequest(
-            prompt=msg, options=options, timeout=120  # 120 Seconds
+            prompt=msg,
+            options=options,
+            timeout=self.resolve_prompt_timeout(TWO_WAY_TALK_TIMEOUT_S),
         )
         await self._show_prompt_request(prompt_request)
 
@@ -462,7 +478,7 @@ class PythonTestCase(TestCase, UserPromptSupport):
         logger.info("Test Cleanup")
         # Log any remaining content that wasn't captured by steps
         # only if real-time logging is enabled
-        if settings.ENABLE_REALTIME_PYTHON_TEST_LOGS:
+        if self._realtime_logs_enabled():
             await self._log_remaining_content()
         else:
             # Use batch logging when real-time logging is disabled
@@ -644,7 +660,7 @@ class PythonTestCase(TestCase, UserPromptSupport):
 
             # Check for any remaining logs that weren't captured by steps
             # or show all logs if real-time logging is disabled
-            if settings.ENABLE_REALTIME_PYTHON_TEST_LOGS:
+            if self._realtime_logs_enabled():
                 await self._log_remaining_content()
             else:
                 # Use batch logging when real-time logging is disabled

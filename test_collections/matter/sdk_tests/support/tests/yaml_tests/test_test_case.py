@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 from pathlib import Path
 from typing import Any, Optional, Type
 from unittest import mock
@@ -20,13 +21,20 @@ from unittest import mock
 import pytest
 
 from app.models.test_case_execution import TestCaseExecution
+from app.models.test_run_execution import TestRunExecution
+from app.models.test_suite_execution import TestSuiteExecution
+from app.models.project import Project
 from app.test_engine.logger import test_engine_logger
 from app.test_engine.models.manual_test_case import ManualVerificationTestStep
 
 from ...chip.chip_server import ChipServerType
 from ...models.matter_test_models import MatterTestStep, MatterTestType
 from ...yaml_tests.models import YamlTestCase
-from ...yaml_tests.models.chip_test import TestError
+from ...yaml_tests.models.chip_test import (
+    EXTENDED_PROMPT_TIMEOUT_S,
+    OUTCOME_TIMEOUT_S,
+    TestError,
+)
 from ...yaml_tests.models.test_case import (
     YamlChipTestCase,
     YamlManualTestCase,
@@ -34,6 +42,38 @@ from ...yaml_tests.models.test_case import (
     YamlSimulatedTestCase,
 )
 from ...yaml_tests.models.yaml_test_models import YamlTest
+
+
+def _yaml_chip_test_case_with_config(config: Optional[dict]) -> YamlChipTestCase:
+    """Build a YamlChipTestCase instance with a manual (UserPrompt) step and
+    an optional project config, for testing prompt timeout resolution."""
+    test_step = MatterTestStep(
+        label="Step1",
+        command="UserPrompt",
+        verification="Verify that this happened",
+    )
+    test = yaml_test_instance(type=MatterTestType.AUTOMATED, tests=[test_step])
+    case_class: Type[YamlTestCase] = YamlTestCase.class_factory(
+        test=test, yaml_version="version"
+    )
+
+    project = Project(name="test_project")
+    project.config = config
+
+    test_run_execution = TestRunExecution()
+    test_run_execution.project = project
+
+    test_suite_execution = TestSuiteExecution()
+    test_suite_execution.test_run_execution = test_run_execution
+
+    test_case_execution = TestCaseExecution()
+    test_case_execution.test_suite_execution = test_suite_execution
+
+    instance = case_class(test_case_execution)
+    assert isinstance(instance, YamlChipTestCase)
+    # test_steps[0] is "Start chip-tool test"; test_steps[1] is the prompt step
+    instance.current_test_step_index = 1
+    return instance
 
 
 def yaml_test_instance(
@@ -411,6 +451,97 @@ def test_prompt_steps_for_yaml_chip_test_case() -> None:
     assert isinstance(last_step, ManualVerificationTestStep)
     assert last_step.name == test_step.label
     assert last_step.verification == test_step.verification
+
+
+@pytest.mark.asyncio
+async def test_show_prompt_uses_configured_timeout() -> None:
+    """show_prompt() (text input) should use
+    test_harness_config.user_prompt_timeout_s when configured, instead of
+    the hardcoded EXTENDED_PROMPT_TIMEOUT_S."""
+    instance = _yaml_chip_test_case_with_config(
+        {"test_harness_config": {"user_prompt_timeout_s": 900}}
+    )
+
+    with mock.patch.object(
+        ManualVerificationTestStep,
+        "prompt_verification_step_with_response",
+        return_value="user response",
+    ) as prompt_mock:
+        await instance.show_prompt("Please enter a value")
+
+    sent_request = prompt_mock.call_args.args[0]
+    assert sent_request.timeout == 900
+
+
+@pytest.mark.asyncio
+async def test_show_prompt_falls_back_to_default_timeout() -> None:
+    """show_prompt() should keep the existing EXTENDED_PROMPT_TIMEOUT_S when
+    user_prompt_timeout_s is not configured."""
+    instance = _yaml_chip_test_case_with_config(None)
+
+    with mock.patch.object(
+        ManualVerificationTestStep,
+        "prompt_verification_step_with_response",
+        return_value="user response",
+    ) as prompt_mock:
+        await instance.show_prompt("Please enter a value")
+
+    sent_request = prompt_mock.call_args.args[0]
+    assert sent_request.timeout == EXTENDED_PROMPT_TIMEOUT_S
+
+
+@pytest.mark.asyncio
+async def test_step_manual_uses_configured_timeout_for_outer_wait_for() -> None:
+    """step_manual() wraps the prompt flow in an outer asyncio.wait_for that
+    must use the same configured timeout as the inner PromptRequest, or the
+    outer wrapper would cut off a prompt before the configured timeout fires.
+    """
+    instance = _yaml_chip_test_case_with_config(
+        {"test_harness_config": {"user_prompt_timeout_s": 900}}
+    )
+
+    captured_timeouts: list[Optional[float]] = []
+    original_wait_for = asyncio.wait_for
+
+    async def _capture_wait_for(aw: Any, timeout: Optional[float]) -> Any:
+        captured_timeouts.append(timeout)
+        return await original_wait_for(aw, timeout)
+
+    with mock.patch.object(
+        ManualVerificationTestStep, "prompt_verification_step", return_value=True
+    ), mock.patch(
+        "test_collections.matter.sdk_tests.support.yaml_tests.models.chip_test"
+        ".asyncio.wait_for",
+        side_effect=_capture_wait_for,
+    ):
+        await instance.step_manual()
+
+    assert captured_timeouts == [900]
+
+
+@pytest.mark.asyncio
+async def test_step_manual_falls_back_to_default_timeout() -> None:
+    """step_manual() should keep the existing OUTCOME_TIMEOUT_S when
+    user_prompt_timeout_s is not configured."""
+    instance = _yaml_chip_test_case_with_config(None)
+
+    captured_timeouts: list[Optional[float]] = []
+    original_wait_for = asyncio.wait_for
+
+    async def _capture_wait_for(aw: Any, timeout: Optional[float]) -> Any:
+        captured_timeouts.append(timeout)
+        return await original_wait_for(aw, timeout)
+
+    with mock.patch.object(
+        ManualVerificationTestStep, "prompt_verification_step", return_value=True
+    ), mock.patch(
+        "test_collections.matter.sdk_tests.support.yaml_tests.models.chip_test"
+        ".asyncio.wait_for",
+        side_effect=_capture_wait_for,
+    ):
+        await instance.step_manual()
+
+    assert captured_timeouts == [OUTCOME_TIMEOUT_S]
 
 
 @pytest.mark.asyncio

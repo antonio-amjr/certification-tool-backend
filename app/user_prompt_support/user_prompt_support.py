@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import Optional
+
 from .constants import UserResponseStatusEnum
 from .prompt_request import PromptRequest
 from .prompt_response import PromptResponse
@@ -27,7 +29,46 @@ class InvalidPromptInput(Exception):
     pass
 
 
+def resolve_user_prompt_timeout(config: Optional[dict], default: int) -> int:
+    """Resolve the user-prompt timeout (seconds) from a project/execution
+    config dict, falling back to `default` if not configured."""
+    if not config:
+        return default
+
+    test_harness_config = config.get("test_harness_config")
+    if not isinstance(test_harness_config, dict):
+        return default
+
+    timeout = test_harness_config.get("user_prompt_timeout_s")
+    if not isinstance(timeout, int) or isinstance(timeout, bool) or timeout <= 0:
+        return default
+
+    return timeout
+
+
 class UserPromptSupport(object):
+    def resolve_prompt_timeout(self, default: int) -> int:
+        """Resolve the configured user-prompt timeout for this test case/step,
+        falling back to `default` if no override is configured.
+
+        Works whether `self` is a TestCase (has a `.config` property) or a
+        TestStep (reaches its config via `.test_step_execution`).
+        """
+        config = getattr(self, "config", None)
+
+        if config is None:
+            test_step_execution = getattr(self, "test_step_execution", None)
+            if test_step_execution is not None:
+                test_run_execution = (
+                    test_step_execution.test_case_execution
+                    .test_suite_execution.test_run_execution
+                )
+                config = test_run_execution.execution_config
+                if config is None:
+                    config = test_run_execution.project.config
+
+        return resolve_user_prompt_timeout(config, default)
+
     async def send_prompt_request(
         self, prompt_request: PromptRequest
     ) -> PromptResponse:

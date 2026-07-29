@@ -38,6 +38,61 @@ def test_create_config_matter_with_valid_config_success() -> None:
     assert config_matter is not None
 
 
+def test_create_config_matter_without_test_harness_config_defaults_to_none() -> None:
+    """test_harness_config is optional; omitting it should not raise."""
+    config_matter = TestEnvironmentConfigMatter(**default_matter_config)
+
+    assert config_matter.test_harness_config is None
+
+
+def test_create_config_matter_with_test_harness_config_succeeds() -> None:
+    config = {
+        **default_matter_config,
+        "test_harness_config": {"user_prompt_timeout_s": 900},
+    }
+    config_matter = TestEnvironmentConfigMatter(**config)
+
+    assert config_matter.test_harness_config is not None
+    assert config_matter.test_harness_config.user_prompt_timeout_s == 900
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_create_config_matter_with_enable_realtime_python_test_logs_succeeds(
+    enabled: bool,
+) -> None:
+    config = {
+        **default_matter_config,
+        "test_harness_config": {"enable_realtime_python_test_logs": enabled},
+    }
+    config_matter = TestEnvironmentConfigMatter(**config)
+
+    assert config_matter.test_harness_config is not None
+    assert config_matter.test_harness_config.enable_realtime_python_test_logs is enabled
+
+
+def test_create_config_matter_realtime_logs_defaults_to_none() -> None:
+    config = {
+        **default_matter_config,
+        "test_harness_config": {"user_prompt_timeout_s": 900},
+    }
+    config_matter = TestEnvironmentConfigMatter(**config)
+
+    assert config_matter.test_harness_config is not None
+    assert config_matter.test_harness_config.enable_realtime_python_test_logs is None
+
+
+def test_create_config_matter_with_unknown_test_harness_config_field_fails() -> None:
+    """test_harness_config uses extra="forbid" so unknown/typo'd fields
+    surface as a clear validation error instead of being silently ignored."""
+    config = {
+        **default_matter_config,
+        "test_harness_config": {"user_promt_timeout_s": 900},
+    }
+
+    with pytest.raises(TestEnvironmentConfigError):
+        TestEnvironmentConfigMatter(**config)
+
+
 def test_create_config_matter_with_no_config_fails() -> None:
     with pytest.raises(TestEnvironmentConfigError) as e:
         TestEnvironmentConfigMatter()

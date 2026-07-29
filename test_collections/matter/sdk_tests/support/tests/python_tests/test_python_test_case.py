@@ -32,6 +32,7 @@ from ...models.matter_test_models import MatterTestStep, MatterTestType
 from ...python_testing.models import PythonTestCase
 from ...python_testing.models.python_test_models import PythonTest, PythonTestType
 from ...python_testing.models.test_case import (
+    USER_PROMPT_TIMEOUT,
     LegacyPythonTestCase,
     NoCommissioningPythonTestCase,
 )
@@ -618,6 +619,88 @@ def _make_test_case_with_config(
         python_test_version="version",
         mandatory=False,
     )(test_case_execution)
+
+
+@pytest.mark.asyncio
+async def test_show_video_prompt_uses_configured_timeout() -> None:
+    """show_video_prompt() should use test_harness_config.user_prompt_timeout_s
+    when configured, instead of the hardcoded USER_PROMPT_TIMEOUT."""
+    config = {
+        **ON_NETWORK_PROJECT_CONFIG,
+        "test_harness_config": {"user_prompt_timeout_s": 900},
+    }
+    test_case = _make_test_case_with_config(config, PythonTestType.COMMISSIONING)
+
+    captured_requests: List[Any] = []
+
+    async def _capture_prompt(request: Any) -> None:
+        captured_requests.append(request)
+
+    with mock.patch.object(
+        test_case, "_show_prompt_request", side_effect=_capture_prompt
+    ):
+        await test_case.show_video_prompt("Please verify")
+
+    assert captured_requests[0].timeout == 900
+
+
+@pytest.mark.asyncio
+async def test_show_video_prompt_falls_back_to_default_timeout() -> None:
+    """show_video_prompt() should keep the existing USER_PROMPT_TIMEOUT when
+    user_prompt_timeout_s is not configured."""
+    test_case = _make_test_case_with_config(
+        ON_NETWORK_PROJECT_CONFIG, PythonTestType.COMMISSIONING
+    )
+
+    captured_requests: List[Any] = []
+
+    async def _capture_prompt(request: Any) -> None:
+        captured_requests.append(request)
+
+    with mock.patch.object(
+        test_case, "_show_prompt_request", side_effect=_capture_prompt
+    ):
+        await test_case.show_video_prompt("Please verify")
+
+    assert captured_requests[0].timeout == USER_PROMPT_TIMEOUT
+
+
+def test_realtime_logs_enabled_true() -> None:
+    config = {
+        **ON_NETWORK_PROJECT_CONFIG,
+        "test_harness_config": {"enable_realtime_python_test_logs": True},
+    }
+    test_case = _make_test_case_with_config(config, PythonTestType.COMMISSIONING)
+
+    assert test_case._realtime_logs_enabled() is True
+
+
+def test_realtime_logs_enabled_false() -> None:
+    config = {
+        **ON_NETWORK_PROJECT_CONFIG,
+        "test_harness_config": {"enable_realtime_python_test_logs": False},
+    }
+    test_case = _make_test_case_with_config(config, PythonTestType.COMMISSIONING)
+
+    assert test_case._realtime_logs_enabled() is False
+
+
+def test_realtime_logs_enabled_defaults_false_when_test_harness_config_absent() -> None:
+    test_case = _make_test_case_with_config(
+        ON_NETWORK_PROJECT_CONFIG, PythonTestType.COMMISSIONING
+    )
+
+    assert test_case._realtime_logs_enabled() is False
+
+
+def test_realtime_logs_enabled_defaults_false_when_key_absent() -> None:
+    config = {
+        **ON_NETWORK_PROJECT_CONFIG,
+        "test_harness_config": {"user_prompt_timeout_s": 900},
+    }
+    test_case = _make_test_case_with_config(config, PythonTestType.COMMISSIONING)
+
+    assert test_case._realtime_logs_enabled() is False
 
 
 @pytest.mark.asyncio

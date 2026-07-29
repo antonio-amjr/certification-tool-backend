@@ -32,6 +32,7 @@ from app.test_engine.models.manual_test_case import (
 from app.user_prompt_support.prompt_request import (
     MessagePromptRequest,
     TextInputPromptRequest,
+    default_timeout_s,
 )
 from app.user_prompt_support.uploaded_file_support import UploadFile
 from app.user_prompt_support.user_prompt_manager import user_prompt_manager
@@ -178,15 +179,16 @@ class ChipTest(TestCase, UserPromptSupport, TestRunnerHooks, TestParserHooks):
         if not isinstance(step, ManualVerificationTestStep):
             raise TestError(f"Unexpected user prompt found in test step: {step.name}")
 
+        prompt_timeout = self.resolve_prompt_timeout(OUTCOME_TIMEOUT_S)
         try:
             if request and request.command == "VerifyVideoStream":
                 await asyncio.wait_for(
                     self.__prompt_stream_verification_manual_step(step),
-                    OUTCOME_TIMEOUT_S,
+                    prompt_timeout,
                 )
             else:
                 await asyncio.wait_for(
-                    self.__prompt_user_manual_step(step), OUTCOME_TIMEOUT_S
+                    self.__prompt_user_manual_step(step), prompt_timeout
                 )
         except asyncio.TimeoutError:
             self.current_test_step.append_failure("Prompt timed out.")
@@ -207,7 +209,7 @@ class ChipTest(TestCase, UserPromptSupport, TestRunnerHooks, TestParserHooks):
 
         userPrompt = TextInputPromptRequest(
             prompt=msg,
-            timeout=EXTENDED_PROMPT_TIMEOUT_S,
+            timeout=self.resolve_prompt_timeout(EXTENDED_PROMPT_TIMEOUT_S),
             default_value=default_value,
             placeholder_text=placeholder,
             regex_pattern=None,
@@ -305,7 +307,9 @@ class ChipTest(TestCase, UserPromptSupport, TestRunnerHooks, TestParserHooks):
         """
 
         prompt = f"Please do the following action on the Controller: {action}"
-        prompt_request = MessagePromptRequest(prompt=prompt, timeout=60)
+        prompt_request = MessagePromptRequest(
+            prompt=prompt, timeout=self.resolve_prompt_timeout(default_timeout_s)
+        )
         await self.send_prompt_request(prompt_request)
 
     def __handle_logs(self, logs: Any) -> None:
