@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import Any
 
 default_matter_config = {
     "network": {
@@ -40,6 +41,14 @@ default_matter_config = {
         "trace_log": True,
     },
     "test_parameters": None,
+}
+
+default_matter_config_with_th_config: dict[str, Any] = {
+    **default_matter_config,
+    "th_config": {
+        "prompt_timeout_seconds": 120,
+        "enable_realtime_python_test_logs": True,
+    },
 }
 
 default_config_no_dut = {
