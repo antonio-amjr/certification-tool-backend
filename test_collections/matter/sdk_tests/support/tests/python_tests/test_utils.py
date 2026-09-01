@@ -31,6 +31,7 @@ from ...python_testing.models.utils import (
     EXECUTABLE,
     RUNNER_CLASS_PATH,
     DUTCommissioningError,
+    _container_logs_enabled,
     capture_admin_storage_file,
     commission_device,
     generate_command_arguments,
@@ -629,7 +630,11 @@ async def test_commission_device() -> None:
         )
 
     mock_send_command.assert_called_once_with(
-        expected_command, prefix=EXECUTABLE, is_stream=True, is_socket=False
+        expected_command,
+        prefix=EXECUTABLE,
+        is_stream=True,
+        is_socket=False,
+        enable_container_logs=False,
     )
     mock_handle_logs.assert_called_once()
     mock_log_test_output.assert_called_once()
@@ -663,7 +668,11 @@ async def test_commission_device_failure() -> None:
         )
 
     mock_send_command.assert_called_once_with(
-        expected_command, prefix=EXECUTABLE, is_stream=True, is_socket=False
+        expected_command,
+        prefix=EXECUTABLE,
+        is_stream=True,
+        is_socket=False,
+        enable_container_logs=False,
     )
     mock_handle_logs.assert_called_once()
 
@@ -1009,3 +1018,56 @@ async def test_nfc_reader_index_not_injected_for_non_nfc_modes() -> None:
     arguments = await generate_command_arguments(cfg)
     joined = " ".join(arguments)
     assert "NFC_Reader_index" not in joined
+
+
+# ---------------------------------------------------------------------------
+# Tests for _container_logs_enabled
+# ---------------------------------------------------------------------------
+
+
+def test_container_logs_enabled_uses_th_config_override_true() -> None:
+    config = default_environment_config.copy(deep=True)  # type: ignore
+    config.th_config.enable_container_logs = True
+
+    with mock.patch(
+        "test_collections.matter.sdk_tests.support.python_testing.models.utils"
+        ".settings"
+    ) as mock_settings:
+        mock_settings.ENABLE_CONTAINER_LOGS = False
+        assert _container_logs_enabled(config) is True
+
+
+def test_container_logs_enabled_uses_th_config_override_false() -> None:
+    config = default_environment_config.copy(deep=True)  # type: ignore
+    config.th_config.enable_container_logs = False
+
+    with mock.patch(
+        "test_collections.matter.sdk_tests.support.python_testing.models.utils"
+        ".settings"
+    ) as mock_settings:
+        mock_settings.ENABLE_CONTAINER_LOGS = True
+        assert _container_logs_enabled(config) is False
+
+
+def test_container_logs_enabled_defers_to_env_when_unset() -> None:
+    config = default_environment_config.copy(deep=True)  # type: ignore
+    config.th_config.enable_container_logs = None
+
+    with mock.patch(
+        "test_collections.matter.sdk_tests.support.python_testing.models.utils"
+        ".settings"
+    ) as mock_settings:
+        mock_settings.ENABLE_CONTAINER_LOGS = True
+        assert _container_logs_enabled(config) is True
+
+
+def test_container_logs_enabled_defers_to_env_when_th_config_none() -> None:
+    config = default_environment_config.copy(deep=True)  # type: ignore
+    config.th_config = None
+
+    with mock.patch(
+        "test_collections.matter.sdk_tests.support.python_testing.models.utils"
+        ".settings"
+    ) as mock_settings:
+        mock_settings.ENABLE_CONTAINER_LOGS = False
+        assert _container_logs_enabled(config) is False

@@ -55,6 +55,9 @@ class THConfig(BaseModel):
     # None means "not set at project level", deferring to the
     # ENABLE_REALTIME_PYTHON_TEST_LOGS environment variable.
     enable_realtime_python_test_logs: Optional[bool] = None
+    # None means "not set at project level", deferring to the
+    # ENABLE_CONTAINER_LOGS environment variable.
+    enable_container_logs: Optional[bool] = None
 
 
 class TestEnvironmentConfig(BaseModel):

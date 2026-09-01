@@ -173,6 +173,18 @@ class PythonTestCase(TestCase, UserPromptSupport):
             return bool(override)
         return settings.ENABLE_REALTIME_PYTHON_TEST_LOGS
 
+    def _container_logs_enabled(self) -> bool:
+        """Whether container-operation logging is enabled.
+
+        The project's th_config.enable_container_logs, when explicitly set,
+        overrides the instance-wide ENABLE_CONTAINER_LOGS env var.
+        """
+        th_config = (self.config or {}).get("th_config") or {}
+        override = th_config.get("enable_container_logs")
+        if override is not None:
+            return bool(override)
+        return settings.ENABLE_CONTAINER_LOGS
+
     async def _display_step_logs(self) -> None:
         """Display logs that were captured during the current step."""
         # Validate file path is set and file exists
@@ -687,6 +699,7 @@ class PythonTestCase(TestCase, UserPromptSupport):
                 prefix=EXECUTABLE,
                 is_stream=True,
                 is_socket=True,
+                enable_container_logs=self._container_logs_enabled(),
             )
             self.test_socket = exec_result.socket
 

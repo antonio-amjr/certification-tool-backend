@@ -14,16 +14,86 @@
 # limitations under the License.
 #
 from asyncio import TimeoutError
+from pathlib import Path
 from unittest import mock
 
 import pytest
 from docker.errors import NotFound
 
-from app.container_manager.container_manager import container_manager
+from app.container_manager.container_manager import (
+    container_manager,
+    resolve_container_logs_enabled,
+)
 from app.tests.utils.docker import FAKE_ID, Container, make_fake_container
 
 DEFAULT_MOUNT_SRC = "/test/path/chip-cert-tool/backend"
 DEFAULT_MOUNT_WORKING_DIR = "/app"
+
+
+def test_resolve_container_logs_enabled_explicit_true_wins() -> None:
+    with mock.patch(
+        "app.container_manager.container_manager.settings.ENABLE_CONTAINER_LOGS",
+        False,
+    ):
+        assert resolve_container_logs_enabled(True) is True
+
+
+def test_resolve_container_logs_enabled_explicit_false_wins() -> None:
+    with mock.patch(
+        "app.container_manager.container_manager.settings.ENABLE_CONTAINER_LOGS",
+        True,
+    ):
+        assert resolve_container_logs_enabled(False) is False
+
+
+def test_resolve_container_logs_enabled_defers_to_settings_when_none() -> None:
+    with mock.patch(
+        "app.container_manager.container_manager.settings.ENABLE_CONTAINER_LOGS",
+        True,
+    ):
+        assert resolve_container_logs_enabled(None) is True
+
+    with mock.patch(
+        "app.container_manager.container_manager.settings.ENABLE_CONTAINER_LOGS",
+        False,
+    ):
+        assert resolve_container_logs_enabled(None) is False
+
+
+@pytest.mark.asyncio
+async def test_create_container_logs_shell_commands_when_enabled() -> None:
+    with mock.patch(
+        "docker.models.containers.ContainerCollection.run"
+    ), mock.patch(
+        "app.container_manager.container_manager.is_running",
+        return_value=True,
+    ), mock.patch(
+        "app.container_manager.container_manager.logger"
+    ) as mock_logger:
+        await container_manager.create_container(
+            docker_image_tag="org/image:tag", enable_container_logs=True
+        )
+
+    # One log line for the equivalent "docker run" command, one for "Container
+    # running for ...".
+    assert mock_logger.info.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_create_container_no_logs_when_disabled() -> None:
+    with mock.patch(
+        "docker.models.containers.ContainerCollection.run"
+    ), mock.patch(
+        "app.container_manager.container_manager.is_running",
+        return_value=True,
+    ), mock.patch(
+        "app.container_manager.container_manager.logger"
+    ) as mock_logger:
+        await container_manager.create_container(
+            docker_image_tag="org/image:tag", enable_container_logs=False
+        )
+
+    mock_logger.info.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -127,6 +197,37 @@ def test_destroy_graceful_falls_back_to_kill_on_stop_failure() -> None:
         remove.assert_called_once_with(force=True)
 
 
+def test_destroy_logs_shell_commands_when_enabled() -> None:
+    container = make_fake_container({"Id": FAKE_ID, "State": {"Status": "running"}})
+    with mock.patch.object(container, "kill"), mock.patch.object(
+        container, "remove"
+    ), mock.patch(
+        "app.container_manager.container_manager.get_container",
+        return_value=container,
+    ), mock.patch(
+        "app.container_manager.container_manager.logger"
+    ) as mock_logger:
+        container_manager.destroy(container, enable_container_logs=True)
+
+    # One log line for the "docker kill" command, one for "docker rm".
+    assert mock_logger.info.call_count == 2
+
+
+def test_destroy_no_logs_when_disabled() -> None:
+    container = make_fake_container({"Id": FAKE_ID, "State": {"Status": "running"}})
+    with mock.patch.object(container, "kill"), mock.patch.object(
+        container, "remove"
+    ), mock.patch(
+        "app.container_manager.container_manager.get_container",
+        return_value=container,
+    ), mock.patch(
+        "app.container_manager.container_manager.logger"
+    ) as mock_logger:
+        container_manager.destroy(container, enable_container_logs=False)
+
+    mock_logger.info.assert_not_called()
+
+
 def test_remove_containers_for_image_removes_stale_containers() -> None:
     stale_container = make_fake_container(
         {"Id": FAKE_ID, "State": {"Status": "running"}}
@@ -209,3 +310,90 @@ def test_get_mount_source_for_destination_invalid_attrs() -> None:
         container, destination=test_dest
     )
     assert src is None
+
+
+def test_copy_file_from_container_logs_when_enabled(tmp_path: Path) -> None:
+    container = make_fake_container({"Id": FAKE_ID, "Name": "test-container"})
+    with mock.patch.object(
+        container, "get_archive", return_value=(iter([b"data"]), {})
+    ), mock.patch("app.container_manager.container_manager.logger") as mock_logger:
+        container_manager.copy_file_from_container(
+            container=container,
+            container_file_path=Path("/some/path"),
+            destination_path=tmp_path,
+            destination_file_name="out.txt",
+            enable_container_logs=True,
+        )
+
+    # One log line for the "### File Copy" message, one for the equivalent
+    # "docker cp" command.
+    assert mock_logger.info.call_count == 2
+    assert (tmp_path / "out.txt").read_bytes() == b"data"
+
+
+def test_copy_file_from_container_no_logs_when_disabled(tmp_path: Path) -> None:
+    container = make_fake_container({"Id": FAKE_ID, "Name": "test-container"})
+    with mock.patch.object(
+        container, "get_archive", return_value=(iter([b"data"]), {})
+    ), mock.patch("app.container_manager.container_manager.logger") as mock_logger:
+        container_manager.copy_file_from_container(
+            container=container,
+            container_file_path=Path("/some/path"),
+            destination_path=tmp_path,
+            destination_file_name="out.txt",
+            enable_container_logs=False,
+        )
+
+    mock_logger.info.assert_not_called()
+
+
+def test_copy_file_to_container_logs_when_enabled(tmp_path: Path) -> None:
+    import io
+    import tarfile
+
+    host_file = tmp_path / "source.tar"
+    content = b"hello"
+    with tarfile.open(host_file, "w") as tar:
+        info = tarfile.TarInfo(name="file.txt")
+        info.size = len(content)
+        tar.addfile(info, io.BytesIO(content))
+
+    container = make_fake_container({"Id": FAKE_ID, "Name": "test-container"})
+    with mock.patch.object(container, "put_archive"), mock.patch(
+        "app.container_manager.container_manager.logger"
+    ) as mock_logger:
+        container_manager.copy_file_to_container(
+            container=container,
+            host_file_path=host_file,
+            destination_container_path=Path("/dest/file.txt"),
+            enable_container_logs=True,
+        )
+
+    # One log line for the "### File Copy" message, one for the equivalent
+    # "docker cp" command.
+    assert mock_logger.info.call_count == 2
+
+
+def test_copy_file_to_container_no_logs_when_disabled(tmp_path: Path) -> None:
+    import io
+    import tarfile
+
+    host_file = tmp_path / "source.tar"
+    content = b"hello"
+    with tarfile.open(host_file, "w") as tar:
+        info = tarfile.TarInfo(name="file.txt")
+        info.size = len(content)
+        tar.addfile(info, io.BytesIO(content))
+
+    container = make_fake_container({"Id": FAKE_ID, "Name": "test-container"})
+    with mock.patch.object(container, "put_archive"), mock.patch(
+        "app.container_manager.container_manager.logger"
+    ) as mock_logger:
+        container_manager.copy_file_to_container(
+            container=container,
+            host_file_path=host_file,
+            destination_container_path=Path("/dest/file.txt"),
+            enable_container_logs=False,
+        )
+
+    mock_logger.info.assert_not_called()

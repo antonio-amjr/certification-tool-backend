@@ -17,6 +17,7 @@ from enum import Enum
 from typing import Optional, Type, TypeVar
 
 from app.constants.shared_constants import DutPairingModeEnum
+from app.core.config import settings
 from app.schemas.test_environment_config import ThreadAutoConfig
 from app.test_engine.logger import test_engine_logger as logger
 from app.test_engine.models import TestSuite
@@ -104,17 +105,35 @@ class PythonTestSuite(TestSuite):
         logger.info(f"Python Test Version: {self.python_test_version}")
 
         logger.info("Setting up SDK container")
-        await self.sdk_container.start()
+        await self.sdk_container.start(
+            enable_container_logs=self._container_logs_enabled()
+        )
 
         self.matter_config = TestEnvironmentConfigMatter(**self.config)
         # pcscd is required for NFC reader access regardless of pairing mode
-        self.sdk_container.send_command("--disable-polkit", prefix="pcscd")
+        self.sdk_container.send_command(
+            "--disable-polkit",
+            prefix="pcscd",
+            enable_container_logs=self._container_logs_enabled(),
+        )
 
         if len(self.pics.clusters) > 0:
             logger.info("Create PICS file for DUT")
             self.sdk_container.set_pics(pics=self.pics)
         else:
             self.sdk_container.reset_pics_state()
+
+    def _container_logs_enabled(self) -> bool:
+        """Whether container-operation logging is enabled.
+
+        The project's th_config.enable_container_logs, when explicitly set,
+        overrides the instance-wide ENABLE_CONTAINER_LOGS env var.
+        """
+        th_config = (self.config or {}).get("th_config") or {}
+        override = th_config.get("enable_container_logs")
+        if override is not None:
+            return bool(override)
+        return settings.ENABLE_CONTAINER_LOGS
 
     async def cleanup(self) -> None:
         logger.info("Suite Cleanup")
@@ -132,7 +151,9 @@ class PythonTestSuite(TestSuite):
                 logger.warning(f"Could not capture admin_storage.json snapshot: {e}")
 
         logger.info("Stopping SDK container")
-        self.sdk_container.destroy()
+        self.sdk_container.destroy(
+            enable_container_logs=self._container_logs_enabled()
+        )
 
         logger.info("Stopping Border Router")
         self.border_router.destroy_device()
