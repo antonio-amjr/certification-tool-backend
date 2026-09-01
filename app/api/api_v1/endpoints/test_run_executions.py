@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 import json
+import re
 from http import HTTPStatus
 from typing import Any
 
@@ -31,6 +32,7 @@ from app.db.session import get_db
 from app.default_environment_config import default_environment_config
 from app.models.project import Project
 from app.models.test_run_execution import TestRunExecution
+from app.pics.pics_writer import PICSWriter
 from app.schemas.test_run_execution import TestRunExecutionUpdate
 from app.test_engine import TEST_ENGINE_ABORTING_TESTING_MESSAGE
 from app.test_engine.test_runner import AbortError, LoadingError, TestRunner
@@ -46,6 +48,17 @@ from test_collections.matter.sdk_tests.support.chip.chip_server import ChipServe
 router = APIRouter()
 
 DEFAULT_CLI_PROJECT_NAME = "CLI Project Execution"
+
+
+def __safe_filename_component(value: str) -> str:
+    """Sanitize a value for safe use as part of a Content-Disposition filename.
+
+    Keeps only alphanumeric characters, hyphens and underscores, replacing
+    everything else (including quotes and CR/LF) with "_". This avoids
+    header injection / malformed headers when the value originates from
+    user-controlled data (e.g. an execution title set via rename).
+    """
+    return re.sub(r"[^a-zA-Z0-9_-]", "_", value)
 
 
 @router.get("/", response_model=list[schemas.TestRunExecutionWithStats])
@@ -538,6 +551,88 @@ def download_grouped_log(
     zip_file = log_utils.create_grouped_log_zip_file(grouped_logs=logs)
 
     file_name = f"{test_run_execution.id}-{test_run_execution.title}.zip"
+    options: dict = {
+        "media_type": "application/zip",
+        "headers": {"Content-Disposition": f'attachment; filename="{file_name}"'},
+    }
+
+    return StreamingResponse(
+        zip_file,
+        **options,
+    )
+
+
+@router.get(
+    "/{id}/pics_export",
+    response_class=StreamingResponse,
+    responses={
+        "200": {
+            "description": "Successful Response",
+            "content": {
+                "application/zip": {"schema": {"type": "string", "format": "binary"}}
+            },
+            "headers": {
+                "Content-Disposition": {
+                    "description": "Suggests a filename for the downloaded ZIP file",
+                    "schema": {"type": "string"},
+                    "example": 'attachment; filename="archive.zip"',
+                }
+            },
+        },
+        "404": {
+            "description": ("Test Run Execution not found, or no PICS were used by it"),
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {"detail": {"type": "string"}},
+                    }
+                }
+            },
+        },
+    },
+)
+def pics_export(
+    *,
+    db: Session = Depends(get_db),
+    id: int,
+) -> StreamingResponse:
+    """Export the PICS actually used by a test run execution.
+
+    Returns the PICS that were in effect when the execution ran (the
+    execution's own execution_pics override when set, otherwise the
+    project's PICS at the time of the request), as a zip archive containing
+    one PICS XML file per cluster. The XML format matches what is already
+    accepted by the PUT /projects/{id}/upload_pics endpoint, so the exported
+    files can be re-imported as-is.
+
+    Args:
+        id (int): ID of the TestRunExecution the PICS export is requested for
+
+    Raises:
+        HTTPException: If there's no TestRunExecution with the given ID, or
+            if no PICS were used by the execution
+
+    Returns:
+        StreamingResponse: .zip file containing one PICS XML file per cluster
+    """
+    test_run_execution = crud.test_run_execution.get(db=db, id=id)
+    if not test_run_execution:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail="Test Run Execution not found"
+        )
+
+    effective_pics = test_run_execution.effective_pics
+    if not effective_pics.clusters:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail="No PICS were used by this test run execution",
+        )
+
+    zip_file = PICSWriter.write_zip(pics=effective_pics)
+
+    safe_title = __safe_filename_component(test_run_execution.title)
+    file_name = f"{test_run_execution.id}-{safe_title}-pics.zip"
     options: dict = {
         "media_type": "application/zip",
         "headers": {"Content-Disposition": f'attachment; filename="{file_name}"'},

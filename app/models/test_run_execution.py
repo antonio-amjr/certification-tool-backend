@@ -24,6 +24,7 @@ from sqlalchemy.orm import Mapped, deferred, mapped_column, relationship, with_p
 
 from app.db.base_class import Base
 from app.db.pydantic_data_type import PydanticListType
+from app.schemas.pics import PICS
 
 from . import TestStateEnum
 from .test_suite_execution import TestSuiteExecution
@@ -99,6 +100,24 @@ class TestRunExecution(Base):
 
     def append_to_log(self, log_record: "TestRunLogEntry") -> None:
         self.log.append(log_record)
+
+    @property
+    def effective_pics(self) -> PICS:
+        """PICS that were actually in effect for this execution.
+
+        execution_pics is snapshotted from the project's PICS at creation
+        time (see CRUDTestRunExecution.create), unless a temporary
+        per-execution override was explicitly provided instead. Either way,
+        this reflects what was configured when the run was created, not
+        whatever the project's PICS happen to be now.
+
+        The fallback to project.pics below only applies to executions
+        created before this snapshotting was introduced (execution_pics
+        left as None).
+        """
+        if self.execution_pics is not None:
+            return PICS.parse_obj(self.execution_pics)
+        return self.project.pics
 
     def test_suite_execution_by_public_id(
         self, public_id: str
