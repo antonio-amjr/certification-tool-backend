@@ -123,13 +123,23 @@ class PythonTestSuite(TestSuite):
         else:
             self.sdk_container.reset_pics_state()
 
+    def _safe_config(self) -> Optional[dict]:
+        """`.config`, or None if it's unavailable (e.g. a test double with no
+        wired-up project/execution chain). Used by the th_config resolvers below,
+        whose contract is to fall back to the env var default rather than raise
+        when project config can't be determined."""
+        try:
+            return self.config
+        except Exception:
+            return None
+
     def _container_logs_enabled(self) -> bool:
         """Whether container-operation logging is enabled.
 
         The project's th_config.enable_container_logs, when explicitly set,
         overrides the instance-wide ENABLE_CONTAINER_LOGS env var.
         """
-        override = get_th_config_value(self.config, "enable_container_logs")
+        override = get_th_config_value(self._safe_config(), "enable_container_logs")
         if override is not None:
             return bool(override)
         return settings.ENABLE_CONTAINER_LOGS

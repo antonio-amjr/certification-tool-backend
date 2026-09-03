@@ -177,16 +177,9 @@ async def test_send_command_logs_shell_command_when_enabled(
 ) -> None:  # noqa
     fake_container = make_fake_container()
     mock_result = ExecResultExtended(0, "log output".encode(), "ID", mock.MagicMock())
+    real_sdk_container._SDKContainer__container = fake_container
 
-    with mock.patch.object(
-        target=real_sdk_container, attribute="is_running", return_value=False
-    ), mock.patch.object(
-        target=container_manager, attribute="get_container", return_value=None
-    ), mock.patch.object(
-        target=container_manager,
-        attribute="create_container",
-        return_value=fake_container,
-    ), mock.patch(
+    with mock.patch(
         target=(
             "test_collections.matter.sdk_tests.support.sdk_container"
             ".exec_run_in_container"
@@ -195,8 +188,6 @@ async def test_send_command_logs_shell_command_when_enabled(
     ), mock.patch.object(
         real_sdk_container, "logger"
     ) as mock_logger:
-        await real_sdk_container.start()
-
         real_sdk_container.send_command(
             "--help", prefix="cmd-prefix", enable_container_logs=True
         )
@@ -216,16 +207,9 @@ async def test_send_command_does_not_log_shell_command_when_disabled(
 ) -> None:  # noqa
     fake_container = make_fake_container()
     mock_result = ExecResultExtended(0, "log output".encode(), "ID", mock.MagicMock())
+    real_sdk_container._SDKContainer__container = fake_container
 
-    with mock.patch.object(
-        target=real_sdk_container, attribute="is_running", return_value=False
-    ), mock.patch.object(
-        target=container_manager, attribute="get_container", return_value=None
-    ), mock.patch.object(
-        target=container_manager,
-        attribute="create_container",
-        return_value=fake_container,
-    ), mock.patch(
+    with mock.patch(
         target=(
             "test_collections.matter.sdk_tests.support.sdk_container"
             ".exec_run_in_container"
@@ -234,8 +218,6 @@ async def test_send_command_does_not_log_shell_command_when_disabled(
     ), mock.patch.object(
         real_sdk_container, "logger"
     ) as mock_logger:
-        await real_sdk_container.start()
-
         real_sdk_container.send_command(
             "--help", prefix="cmd-prefix", enable_container_logs=False
         )

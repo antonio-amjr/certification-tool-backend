@@ -162,6 +162,16 @@ class PythonTestCase(TestCase, UserPromptSupport):
         if self._realtime_logs_enabled():
             await self._display_step_logs()
 
+    def _safe_config(self) -> Optional[dict]:
+        """`.config`, or None if it's unavailable (e.g. a test double with no
+        wired-up project/execution chain). Used by the th_config resolvers below,
+        whose contract is to fall back to the env var default rather than raise
+        when project config can't be determined."""
+        try:
+            return self.config
+        except Exception:
+            return None
+
     def _realtime_logs_enabled(self) -> bool:
         """Whether Python test logs should be displayed incrementally per step.
 
@@ -169,7 +179,7 @@ class PythonTestCase(TestCase, UserPromptSupport):
         set, overrides the instance-wide ENABLE_REALTIME_PYTHON_TEST_LOGS env var.
         """
         override = get_th_config_value(
-            self.config, "enable_realtime_python_test_logs"
+            self._safe_config(), "enable_realtime_python_test_logs"
         )
         if override is not None:
             return bool(override)
@@ -181,7 +191,7 @@ class PythonTestCase(TestCase, UserPromptSupport):
         The project's th_config.enable_container_logs, when explicitly set,
         overrides the instance-wide ENABLE_CONTAINER_LOGS env var.
         """
-        override = get_th_config_value(self.config, "enable_container_logs")
+        override = get_th_config_value(self._safe_config(), "enable_container_logs")
         if override is not None:
             return bool(override)
         return settings.ENABLE_CONTAINER_LOGS

@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import importlib
 from asyncio import TimeoutError
 from pathlib import Path
 from unittest import mock
@@ -20,13 +21,24 @@ from unittest import mock
 import pytest
 from docker.errors import NotFound
 
-import app.container_manager.container_manager as container_manager_module
 from app.container_manager.container_manager import (
     container_manager,
     resolve_container_logs_enabled,
 )
 from app.core.config import settings
 from app.tests.utils.docker import FAKE_ID, Container, make_fake_container
+
+# `app/container_manager/__init__.py` does `from .container_manager import
+# container_manager`, which shadows the submodule name with the singleton
+# instance in the package's own namespace. That means any attribute-chain
+# resolution of "app.container_manager.container_manager" (whether via a
+# mock.patch string, or via `import app.container_manager.container_manager as
+# x`, which also resolves by attribute traversal) lands on the *instance*, not
+# the module. importlib.import_module() does a genuine sys.modules lookup
+# instead, so it reliably returns the actual module object.
+container_manager_module = importlib.import_module(
+    "app.container_manager.container_manager"
+)
 
 DEFAULT_MOUNT_SRC = "/test/path/chip-cert-tool/backend"
 DEFAULT_MOUNT_WORKING_DIR = "/app"

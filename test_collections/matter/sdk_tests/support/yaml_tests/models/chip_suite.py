@@ -74,7 +74,10 @@ class ChipSuite(TestSuite, UserPromptSupport):
         The project's th_config.enable_container_logs, when explicitly set,
         overrides the instance-wide ENABLE_CONTAINER_LOGS env var.
         """
-        th_config = self.config_matter.th_config
+        try:
+            th_config = self.config_matter.th_config
+        except Exception:
+            th_config = None
         override = th_config.enable_container_logs if th_config else None
         if override is not None:
             return bool(override)
