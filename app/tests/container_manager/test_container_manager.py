@@ -20,10 +20,12 @@ from unittest import mock
 import pytest
 from docker.errors import NotFound
 
+import app.container_manager.container_manager as container_manager_module
 from app.container_manager.container_manager import (
     container_manager,
     resolve_container_logs_enabled,
 )
+from app.core.config import settings
 from app.tests.utils.docker import FAKE_ID, Container, make_fake_container
 
 DEFAULT_MOUNT_SRC = "/test/path/chip-cert-tool/backend"
@@ -31,32 +33,20 @@ DEFAULT_MOUNT_WORKING_DIR = "/app"
 
 
 def test_resolve_container_logs_enabled_explicit_true_wins() -> None:
-    with mock.patch(
-        "app.container_manager.container_manager.settings.ENABLE_CONTAINER_LOGS",
-        False,
-    ):
+    with mock.patch.object(settings, "ENABLE_CONTAINER_LOGS", False):
         assert resolve_container_logs_enabled(True) is True
 
 
 def test_resolve_container_logs_enabled_explicit_false_wins() -> None:
-    with mock.patch(
-        "app.container_manager.container_manager.settings.ENABLE_CONTAINER_LOGS",
-        True,
-    ):
+    with mock.patch.object(settings, "ENABLE_CONTAINER_LOGS", True):
         assert resolve_container_logs_enabled(False) is False
 
 
 def test_resolve_container_logs_enabled_defers_to_settings_when_none() -> None:
-    with mock.patch(
-        "app.container_manager.container_manager.settings.ENABLE_CONTAINER_LOGS",
-        True,
-    ):
+    with mock.patch.object(settings, "ENABLE_CONTAINER_LOGS", True):
         assert resolve_container_logs_enabled(None) is True
 
-    with mock.patch(
-        "app.container_manager.container_manager.settings.ENABLE_CONTAINER_LOGS",
-        False,
-    ):
+    with mock.patch.object(settings, "ENABLE_CONTAINER_LOGS", False):
         assert resolve_container_logs_enabled(None) is False
 
 
@@ -66,8 +56,8 @@ async def test_create_container_logs_shell_commands_when_enabled() -> None:
         "docker.models.containers.ContainerCollection.run"
     ), mock.patch.object(
         container_manager, "is_running", return_value=True
-    ), mock.patch(
-        "app.container_manager.container_manager.logger"
+    ), mock.patch.object(
+        container_manager_module, "logger"
     ) as mock_logger:
         await container_manager.create_container(
             docker_image_tag="org/image:tag", enable_container_logs=True
@@ -84,8 +74,8 @@ async def test_create_container_no_logs_when_disabled() -> None:
         "docker.models.containers.ContainerCollection.run"
     ), mock.patch.object(
         container_manager, "is_running", return_value=True
-    ), mock.patch(
-        "app.container_manager.container_manager.logger"
+    ), mock.patch.object(
+        container_manager_module, "logger"
     ) as mock_logger:
         await container_manager.create_container(
             docker_image_tag="org/image:tag", enable_container_logs=False
@@ -202,8 +192,8 @@ def test_destroy_logs_shell_commands_when_enabled() -> None:
     ), mock.patch(
         "app.container_manager.container_manager.get_container",
         return_value=container,
-    ), mock.patch(
-        "app.container_manager.container_manager.logger"
+    ), mock.patch.object(
+        container_manager_module, "logger"
     ) as mock_logger:
         container_manager.destroy(container, enable_container_logs=True)
 
@@ -218,8 +208,8 @@ def test_destroy_no_logs_when_disabled() -> None:
     ), mock.patch(
         "app.container_manager.container_manager.get_container",
         return_value=container,
-    ), mock.patch(
-        "app.container_manager.container_manager.logger"
+    ), mock.patch.object(
+        container_manager_module, "logger"
     ) as mock_logger:
         container_manager.destroy(container, enable_container_logs=False)
 
@@ -314,7 +304,7 @@ def test_copy_file_from_container_logs_when_enabled(tmp_path: Path) -> None:
     container = make_fake_container({"Id": FAKE_ID, "Name": "test-container"})
     with mock.patch.object(
         container, "get_archive", return_value=(iter([b"data"]), {})
-    ), mock.patch("app.container_manager.container_manager.logger") as mock_logger:
+    ), mock.patch.object(container_manager_module, "logger") as mock_logger:
         container_manager.copy_file_from_container(
             container=container,
             container_file_path=Path("/some/path"),
@@ -333,7 +323,7 @@ def test_copy_file_from_container_no_logs_when_disabled(tmp_path: Path) -> None:
     container = make_fake_container({"Id": FAKE_ID, "Name": "test-container"})
     with mock.patch.object(
         container, "get_archive", return_value=(iter([b"data"]), {})
-    ), mock.patch("app.container_manager.container_manager.logger") as mock_logger:
+    ), mock.patch.object(container_manager_module, "logger") as mock_logger:
         container_manager.copy_file_from_container(
             container=container,
             container_file_path=Path("/some/path"),
@@ -357,8 +347,8 @@ def test_copy_file_to_container_logs_when_enabled(tmp_path: Path) -> None:
         tar.addfile(info, io.BytesIO(content))
 
     container = make_fake_container({"Id": FAKE_ID, "Name": "test-container"})
-    with mock.patch.object(container, "put_archive"), mock.patch(
-        "app.container_manager.container_manager.logger"
+    with mock.patch.object(container, "put_archive"), mock.patch.object(
+        container_manager_module, "logger"
     ) as mock_logger:
         container_manager.copy_file_to_container(
             container=container,
@@ -384,8 +374,8 @@ def test_copy_file_to_container_no_logs_when_disabled(tmp_path: Path) -> None:
         tar.addfile(info, io.BytesIO(content))
 
     container = make_fake_container({"Id": FAKE_ID, "Name": "test-container"})
-    with mock.patch.object(container, "put_archive"), mock.patch(
-        "app.container_manager.container_manager.logger"
+    with mock.patch.object(container, "put_archive"), mock.patch.object(
+        container_manager_module, "logger"
     ) as mock_logger:
         container_manager.copy_file_to_container(
             container=container,

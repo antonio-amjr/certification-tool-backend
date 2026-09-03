@@ -192,8 +192,8 @@ async def test_send_command_logs_shell_command_when_enabled(
             ".exec_run_in_container"
         ),
         return_value=mock_result,
-    ), mock.patch(
-        target="test_collections.matter.sdk_tests.support.sdk_container.logger"
+    ), mock.patch.object(
+        real_sdk_container, "logger"
     ) as mock_logger:
         await real_sdk_container.start()
 
@@ -231,8 +231,8 @@ async def test_send_command_does_not_log_shell_command_when_disabled(
             ".exec_run_in_container"
         ),
         return_value=mock_result,
-    ), mock.patch(
-        target="test_collections.matter.sdk_tests.support.sdk_container.logger"
+    ), mock.patch.object(
+        real_sdk_container, "logger"
     ) as mock_logger:
         await real_sdk_container.start()
 
