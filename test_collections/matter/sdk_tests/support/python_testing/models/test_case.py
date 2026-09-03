@@ -25,6 +25,7 @@ from typing import Any, Optional, Type, TypeVar
 from app.constants.shared_constants import NFC_PAIRING_MODES
 from app.core.config import settings
 from app.models import TestCaseExecution
+from app.schemas.test_environment_config import get_th_config_value
 from app.test_engine.logger import PYTHON_TEST_LEVEL
 from app.test_engine.logger import test_engine_logger as logger
 from app.test_engine.models import TestCase, TestStep
@@ -167,8 +168,9 @@ class PythonTestCase(TestCase, UserPromptSupport):
         The project's th_config.enable_realtime_python_test_logs, when explicitly
         set, overrides the instance-wide ENABLE_REALTIME_PYTHON_TEST_LOGS env var.
         """
-        th_config = (self.config or {}).get("th_config") or {}
-        override = th_config.get("enable_realtime_python_test_logs")
+        override = get_th_config_value(
+            self.config, "enable_realtime_python_test_logs"
+        )
         if override is not None:
             return bool(override)
         return settings.ENABLE_REALTIME_PYTHON_TEST_LOGS
@@ -179,8 +181,7 @@ class PythonTestCase(TestCase, UserPromptSupport):
         The project's th_config.enable_container_logs, when explicitly set,
         overrides the instance-wide ENABLE_CONTAINER_LOGS env var.
         """
-        th_config = (self.config or {}).get("th_config") or {}
-        override = th_config.get("enable_container_logs")
+        override = get_th_config_value(self.config, "enable_container_logs")
         if override is not None:
             return bool(override)
         return settings.ENABLE_CONTAINER_LOGS

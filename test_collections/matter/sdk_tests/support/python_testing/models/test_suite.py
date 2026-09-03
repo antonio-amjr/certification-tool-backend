@@ -18,7 +18,7 @@ from typing import Optional, Type, TypeVar
 
 from app.constants.shared_constants import DutPairingModeEnum
 from app.core.config import settings
-from app.schemas.test_environment_config import ThreadAutoConfig
+from app.schemas.test_environment_config import ThreadAutoConfig, get_th_config_value
 from app.test_engine.logger import test_engine_logger as logger
 from app.test_engine.models import TestSuite
 from app.user_prompt_support.user_prompt_support import UserPromptSupport
@@ -129,8 +129,7 @@ class PythonTestSuite(TestSuite):
         The project's th_config.enable_container_logs, when explicitly set,
         overrides the instance-wide ENABLE_CONTAINER_LOGS env var.
         """
-        th_config = (self.config or {}).get("th_config") or {}
-        override = th_config.get("enable_container_logs")
+        override = get_th_config_value(self.config, "enable_container_logs")
         if override is not None:
             return bool(override)
         return settings.ENABLE_CONTAINER_LOGS

@@ -624,6 +624,10 @@ async def test_commission_device() -> None:
         ".log_test_output_file"
     ) as mock_log_test_output, mock.patch.object(
         target=sdk_container, attribute="exec_exit_code", return_value=0
+    ), mock.patch(
+        target="test_collections.matter.sdk_tests.support.python_testing.models.utils"
+        ".settings.ENABLE_CONTAINER_LOGS",
+        new=False,
     ):
         await commission_device(
             default_environment_config, test_engine_logger  # type: ignore
@@ -660,6 +664,10 @@ async def test_commission_device_failure() -> None:
         ".handle_logs"
     ) as mock_handle_logs, mock.patch.object(
         target=sdk_container, attribute="exec_exit_code", return_value=1
+    ), mock.patch(
+        target="test_collections.matter.sdk_tests.support.python_testing.models.utils"
+        ".settings.ENABLE_CONTAINER_LOGS",
+        new=False,
     ), pytest.raises(
         DUTCommissioningError
     ):

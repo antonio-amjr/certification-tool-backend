@@ -204,7 +204,11 @@ async def test_pair_with_dut_thread_with_external_config_success() -> None:
         target=test_suite.runner,
         attribute="pairing_thread",
         return_value=True,
-    ) as mock_pairing_thread:
+    ) as mock_pairing_thread, mock.patch(
+        "test_collections.matter.sdk_tests.support.yaml_tests.models.chip_suite"
+        ".settings.ENABLE_CONTAINER_LOGS",
+        False,
+    ):
         result = await test_suite._ChipSuite__pair_with_dut_thread()
 
     assert result is True
@@ -280,7 +284,11 @@ async def test_pair_with_dut_thread_with_auto_config_success() -> None:
         target=test_suite.runner,
         attribute="pairing_thread",
         return_value=True,
-    ) as mock_pairing_thread:
+    ) as mock_pairing_thread, mock.patch(
+        "test_collections.matter.sdk_tests.support.yaml_tests.models.chip_suite"
+        ".settings.ENABLE_CONTAINER_LOGS",
+        False,
+    ):
         result = await test_suite._ChipSuite__pair_with_dut_thread()
 
     assert result is True

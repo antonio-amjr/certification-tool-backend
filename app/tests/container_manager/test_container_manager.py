@@ -64,9 +64,8 @@ def test_resolve_container_logs_enabled_defers_to_settings_when_none() -> None:
 async def test_create_container_logs_shell_commands_when_enabled() -> None:
     with mock.patch(
         "docker.models.containers.ContainerCollection.run"
-    ), mock.patch(
-        "app.container_manager.container_manager.is_running",
-        return_value=True,
+    ), mock.patch.object(
+        container_manager, "is_running", return_value=True
     ), mock.patch(
         "app.container_manager.container_manager.logger"
     ) as mock_logger:
@@ -83,9 +82,8 @@ async def test_create_container_logs_shell_commands_when_enabled() -> None:
 async def test_create_container_no_logs_when_disabled() -> None:
     with mock.patch(
         "docker.models.containers.ContainerCollection.run"
-    ), mock.patch(
-        "app.container_manager.container_manager.is_running",
-        return_value=True,
+    ), mock.patch.object(
+        container_manager, "is_running", return_value=True
     ), mock.patch(
         "app.container_manager.container_manager.logger"
     ) as mock_logger:
