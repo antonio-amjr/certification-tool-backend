@@ -30,11 +30,14 @@ from ...exec_run_in_container import ExecResultExtended
 from ...python_testing.models.utils import (
     EXECUTABLE,
     RUNNER_CLASS_PATH,
+    ADMIN_STORAGE_FILE_HOST,
     DUTCommissioningError,
+    PromptOption,
     _container_logs_enabled,
     capture_admin_storage_file,
     commission_device,
     generate_command_arguments,
+    should_perform_new_commissioning,
 )
 from ...sdk_container import SDKContainer
 
@@ -683,6 +686,46 @@ async def test_commission_device_failure() -> None:
         enable_container_logs=False,
     )
     mock_handle_logs.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Tests for should_perform_new_commissioning (admin_storage.json reuse prompt)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_should_perform_new_commissioning_copies_file_with_container_logs() -> (
+    None
+):
+    """Regression test: the copy_file_to_container call here must thread through
+    enable_container_logs, like its sibling commission_device/
+    __copy_admin_storage_file calls in this same module do."""
+    sdk_container: SDKContainer = SDKContainer()
+    mock_storage_host = mock.MagicMock()
+    mock_storage_host.exists.return_value = True
+
+    with mock.patch.object(
+        target=sdk_container, attribute="copy_file_to_container"
+    ) as mock_copy, mock.patch(
+        target="test_collections.matter.sdk_tests.support.python_testing.models.utils"
+        ".ADMIN_STORAGE_FILE_HOST",
+        new=mock_storage_host,
+    ), mock.patch(
+        target="test_collections.matter.sdk_tests.support.python_testing.models.utils"
+        ".prompt_reuse_commissioning",
+        return_value=PromptOption.PASS,
+    ), mock.patch(
+        target="test_collections.matter.sdk_tests.support.python_testing.models.utils"
+        ".settings.ENABLE_CONTAINER_LOGS",
+        new=True,
+    ):
+        result = await should_perform_new_commissioning(
+            mock.Mock(), default_environment_config, test_engine_logger  # type: ignore
+        )
+
+    assert result is False
+    mock_copy.assert_called_once()
+    assert mock_copy.call_args.kwargs["enable_container_logs"] is True
 
 
 # ---------------------------------------------------------------------------
