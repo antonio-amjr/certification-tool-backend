@@ -16,7 +16,8 @@
 import asyncio
 import io
 import tarfile
-from asyncio import TimeoutError as AsyncioTimeoutError, wait_for
+from asyncio import TimeoutError as AsyncioTimeoutError
+from asyncio import wait_for
 from pathlib import Path
 from typing import Dict, Optional
 
