@@ -311,9 +311,7 @@ class ChipSuite(TestSuite, UserPromptSupport):
         await self.runner.stop(enable_container_logs=self._container_logs_enabled())
 
         logger.info("Stopping SDK container")
-        self.sdk_container.destroy(
-            enable_container_logs=self._container_logs_enabled()
-        )
+        self.sdk_container.destroy(enable_container_logs=self._container_logs_enabled())
 
         if self.border_router is not None:
             logger.info("Stopping border router container")

@@ -63,9 +63,7 @@ class ContainerManager(object, metaclass=Singleton):
         enable_container_logs: Optional[bool] = None,
     ) -> Container:
         logs_enabled = resolve_container_logs_enabled(enable_container_logs)
-        container = self.__run_new_container(
-            docker_image_tag, parameters, logs_enabled
-        )
+        container = self.__run_new_container(docker_image_tag, parameters, logs_enabled)
         await self.__container_ready(container)
         if logs_enabled:
             logger.info(f"Container running for {docker_image_tag}")

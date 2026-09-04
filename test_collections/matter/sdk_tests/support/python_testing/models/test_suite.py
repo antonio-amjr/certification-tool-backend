@@ -160,9 +160,7 @@ class PythonTestSuite(TestSuite):
                 logger.warning(f"Could not capture admin_storage.json snapshot: {e}")
 
         logger.info("Stopping SDK container")
-        self.sdk_container.destroy(
-            enable_container_logs=self._container_logs_enabled()
-        )
+        self.sdk_container.destroy(enable_container_logs=self._container_logs_enabled())
 
         logger.info("Stopping Border Router")
         self.border_router.destroy_device()

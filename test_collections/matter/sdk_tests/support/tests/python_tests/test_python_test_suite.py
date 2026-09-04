@@ -629,9 +629,7 @@ async def test_should_perform_new_commissioning_no() -> None:
         (None, False, False),  # unset config defers to env False
     ],
 )
-def test_container_logs_enabled_matrix(
-    th_config_value, env_value, expected
-) -> None:
+def test_container_logs_enabled_matrix(th_config_value, env_value, expected) -> None:
     suite_class: Type[PythonTestSuite] = PythonTestSuite.class_factory(
         suite_type=SuiteType.NO_COMMISSIONING,
         name="SomeSuite",
