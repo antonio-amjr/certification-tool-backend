@@ -111,7 +111,10 @@ class Settings(BaseSettings):
     ENABLE_REALTIME_PYTHON_TEST_LOGS: bool = False
 
     # Container Logging
-    ENABLE_CONTAINER_LOGS: bool = False
+    # Defaults to True: most existing TH installs already run with this enabled
+    # via .env, and it can still be explicitly disabled per-instance (.env) or
+    # per-project (th_config.enable_container_logs).
+    ENABLE_CONTAINER_LOGS: bool = True
 
     class Config:
         case_sensitive = True
