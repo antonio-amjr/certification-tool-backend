@@ -172,7 +172,9 @@ async def test_send_command_default_prefix(real_sdk_container) -> None:  # noqa
 
 
 @pytest.mark.asyncio
-async def test_send_command_logs_shell_command_when_enabled(real_sdk_container) -> None:  # noqa
+async def test_send_command_logs_shell_command_when_enabled(
+    real_sdk_container,  # noqa
+) -> None:
     fake_container = make_fake_container()
     mock_result = ExecResultExtended(0, "log output".encode(), "ID", mock.MagicMock())
     real_sdk_container._SDKContainer__container = fake_container
@@ -198,7 +200,9 @@ async def test_send_command_logs_shell_command_when_enabled(real_sdk_container) 
 
 
 @pytest.mark.asyncio
-async def test_send_command_does_not_log_shell_command_when_disabled(real_sdk_container) -> None:  # noqa
+async def test_send_command_does_not_log_shell_command_when_disabled(
+    real_sdk_container,  # noqa
+) -> None:
     fake_container = make_fake_container()
     mock_result = ExecResultExtended(0, "log output".encode(), "ID", mock.MagicMock())
     real_sdk_container._SDKContainer__container = fake_container
