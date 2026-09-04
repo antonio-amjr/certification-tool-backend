@@ -16,7 +16,7 @@
 import asyncio
 import io
 import tarfile
-from asyncio import TimeoutError, wait_for
+from asyncio import TimeoutError as AsyncioTimeoutError, wait_for
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -199,7 +199,7 @@ class ContainerManager(object, metaclass=Singleton):
             await wait_for(
                 self.__container_started(container), container_bring_up_timeout
             )
-        except TimeoutError as e:
+        except AsyncioTimeoutError as e:
             logger.error(
                 f"Container did start timed out in {container_bring_up_timeout}s"
             )

@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 import importlib
-from asyncio import TimeoutError
+from asyncio import TimeoutError as AsyncioTimeoutError
 from pathlib import Path
 from unittest import mock
 
@@ -114,7 +114,7 @@ async def test_create_container_timeout() -> None:
         "app.container_manager.container_manager.is_running",
         return_value=False,
     ):
-        with pytest.raises(TimeoutError):
+        with pytest.raises(AsyncioTimeoutError):
             await container_manager.create_container(docker_image_tag="org/image:tag")
 
 
